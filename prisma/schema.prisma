@@ -1,0 +1,185 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum OrderStatus {
+  PENDING
+  PREPARING
+  READY
+  COLLECTED
+  CANCELLED
+}
+
+enum PaymentMethod {
+  CASH
+}
+
+enum PaymentStatus {
+  UNPAID
+  PAID
+}
+
+model Admin {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  collectedOrders Order[]        @relation("CollectedByAdmin")
+  sessions        AdminSession[]
+}
+
+model AdminSession {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  adminId   String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  admin     Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([adminId])
+  @@index([expiresAt])
+}
+
+model AdminLoginLimit {
+  key             String   @id
+  windowStartedAt DateTime @default(now())
+  attempts        Int      @default(0)
+
+  @@index([windowStartedAt])
+}
+
+// Records completed data seeds so reruns never undo later menu management.
+model SeedRun {
+  key       String   @id
+  createdAt DateTime @default(now())
+}
+
+model MenuItem {
+  id            String    @id @default(cuid())
+  name          String    @unique
+  priceInAgorot Int
+  isAvailable   Boolean   @default(true)
+  archivedAt    DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  toppings   MenuItemTopping[]
+  orderItems OrderItem[]
+
+  @@index([archivedAt, isAvailable])
+}
+
+model Topping {
+  id            String    @id @default(cuid())
+  name          String    @unique
+  priceInAgorot Int
+  isAvailable   Boolean   @default(true)
+  archivedAt    DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  menuLinks     MenuItemTopping[]
+  orderToppings OrderItemTopping[]
+
+  @@index([archivedAt, isAvailable])
+}
+
+model MenuItemTopping {
+  id         String   @id @default(cuid())
+  menuItemId String
+  toppingId  String
+  createdAt  DateTime @default(now())
+
+  menuItem MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  topping  Topping  @relation(fields: [toppingId], references: [id], onDelete: Cascade)
+
+  @@unique([menuItemId, toppingId])
+  @@index([menuItemId])
+  @@index([toppingId])
+}
+
+model Order {
+  id                      String        @id @default(cuid())
+  orderNumber             Int           @unique @default(autoincrement())
+  customerName            String
+  status                  OrderStatus   @default(PENDING)
+  totalAmount             Int
+  visibleCode             String        @unique
+  pickupTokenHash         String        @unique
+  customerAccessTokenHash String        @unique
+  credentialVersion       Int           @default(2)
+  creationKeyHash          String?       @unique
+  creationRequestHash      String?
+  encryptedCredentials    String?
+  estimatedMinutes        Int?
+  paymentMethod           PaymentMethod @default(CASH)
+  paymentStatus           PaymentStatus @default(UNPAID)
+  createdAt               DateTime      @default(now())
+  updatedAt               DateTime      @updatedAt
+  readyAt                 DateTime?
+  collectedAt             DateTime?
+  collectedByAdminId      String?
+  cancelledAt             DateTime?
+
+  items            OrderItem[]
+  collectedByAdmin Admin?      @relation("CollectedByAdmin", fields: [collectedByAdminId], references: [id], onDelete: Restrict)
+
+  @@index([status, createdAt])
+  @@index([createdAt])
+  @@index([customerName])
+  @@index([collectedByAdminId])
+}
+
+model OrderItem {
+  id         String   @id @default(cuid())
+  orderId    String
+  menuItemId String?
+  itemName   String
+  unitPrice  Int
+  quantity   Int
+  createdAt  DateTime @default(now())
+
+  order    Order     @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  menuItem MenuItem? @relation(fields: [menuItemId], references: [id], onDelete: SetNull)
+
+  toppings OrderItemTopping[]
+
+  @@index([orderId])
+  @@index([menuItemId])
+}
+
+model OrderItemTopping {
+  id           String   @id @default(cuid())
+  orderItemId  String
+  toppingId    String?
+  toppingName  String
+  toppingPrice Int
+  createdAt    DateTime @default(now())
+
+  orderItem OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Restrict)
+  topping   Topping?  @relation(fields: [toppingId], references: [id], onDelete: SetNull)
+
+  @@index([orderItemId])
+  @@index([toppingId])
+}
+
+model RealtimeEvent {
+  id            String    @id @default(cuid())
+  orderId       String
+  createdAt     DateTime  @default(now())
+  deliveredAt   DateTime?
+  attempts      Int       @default(0)
+  nextAttemptAt DateTime  @default(now())
+  leaseUntil    DateTime?
+  leaseToken    String?
+
+  @@index([deliveredAt, nextAttemptAt])
+}

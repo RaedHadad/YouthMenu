@@ -1,0 +1,150 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-yellow: #FFD73E;
+  --color-cream: #FFFDF0;
+  --color-blue: #1E56C9;
+  --color-red: #EA4933;
+}
+
+:root {
+  --background: #FFFDF0;
+  --foreground: #1E56C9;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background: #FFFDF0;
+  color: var(--foreground);
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+button:not(:disabled), a {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+button:not(:disabled) { cursor: pointer; }
+
+.step-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  background: #FFD73E;
+  border: 2px solid #1E56C9;
+  font-size: 1.1rem;
+}
+
+.quantity-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  border: 2px solid #1E56C9;
+  border-radius: 14px;
+  background: white;
+}
+
+.quantity-button:disabled { opacity: .4; cursor: not-allowed; }
+
+@media (hover: hover) {
+  .dish-card:hover { border-color: #1E56C9; }
+}
+
+:focus-visible {
+  outline: 3px solid #1E56C9 !important;
+  outline-offset: 4px;
+}
+
+.skip-link {
+  position: fixed;
+  inset-block-start: -8rem;
+  inset-inline-start: 1rem;
+  z-index: 100;
+  padding: 1rem;
+  background: #FFFDF0;
+  border: 2px solid #1E56C9;
+  border-radius: 1rem;
+}
+
+.skip-link:focus { inset-block-start: 1rem; }
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@media print {
+  @page { margin: 8mm; }
+
+  html, body {
+    background: white !important;
+    min-height: 0 !important;
+  }
+
+  /* Remove unrelated layout entirely to avoid blank printed pages. */
+  body:has(.receipt-print) *:not(.receipt-print):not(.receipt-print *):not(:has(.receipt-print)),
+  .no-print, button, input, form, nav {
+    display: none !important;
+  }
+
+  body:has(.receipt-print) *:has(.receipt-print) {
+    display: block !important;
+    position: static !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    min-height: 0 !important;
+    width: auto !important;
+    background: white !important;
+    box-shadow: none !important;
+  }
+
+  .receipt-print * {
+    color: black !important;
+    background: white !important;
+    border-color: black !important;
+    box-shadow: none !important;
+  }
+
+  .receipt-print {
+    position: static;
+    margin: 0 auto;
+    width: 100%;
+    max-width: 80mm;
+    overflow: visible;
+    color: black !important;
+    background: white !important;
+    border: 1px solid black;
+    border-radius: 0;
+    box-shadow: none !important;
+    font-size: 10pt;
+  }
+
+  .receipt-heading, .receipt-body { padding: 4mm; }
+  .receipt-heading h1 { font-size: 18pt; }
+  .receipt-details > div, .receipt-status, .receipt-pickup { break-inside: avoid; }
+  .receipt-pickup canvas { width: 180px !important; height: 180px !important; }
+}
