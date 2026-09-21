@@ -17,14 +17,15 @@ export async function activeOrders(db: PrismaClient) {
 const mutation = z.strictObject({
   id: z.string().min(1).max(128),
   expectedStatus: z.enum(['PENDING', 'PREPARING', 'READY']),
-  status: z.enum(['PREPARING', 'READY', 'CANCELLED']),
+  status: z.enum(['PENDING', 'PREPARING', 'READY', 'CANCELLED']),
   estimatedMinutes: z.number().int().min(1).max(180).optional(),
 });
 export async function updateKitchenOrder(db: PrismaClient, input: unknown) {
   const parsed = mutation.safeParse(input);
   if (!parsed.success) throw new AdminHttpError('بيانات الطلب غير صالحة', 400);
   const { id, expectedStatus, status, estimatedMinutes } = parsed.data;
-  if (!isOrderStatusTransitionAllowed(expectedStatus, status) || (estimatedMinutes !== undefined && status !== 'PREPARING')) {
+  const estimateOnly = status === expectedStatus && ['PENDING', 'PREPARING'].includes(status) && estimatedMinutes !== undefined;
+  if ((!estimateOnly && !isOrderStatusTransitionAllowed(expectedStatus, status)) || (estimatedMinutes !== undefined && !['PENDING', 'PREPARING'].includes(status))) {
     throw new AdminHttpError('تغيير الحالة غير مسموح', 400);
   }
   return db.$transaction(async (tx) => {

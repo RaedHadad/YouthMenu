@@ -1,132 +1,81 @@
 'use client';
-
-import { useState } from 'react';
-import { Plus } from 'lucide-react';
+import { useRef, useState } from 'react';
 import { formatMoney } from '@/lib/money';
 
-export type AdminMenuItem = {
-  id: string;
-  name: string;
-  priceInAgorot: number;
-  isAvailable: boolean;
-};
-
-export type AdminTopping = {
-  id: string;
-  name: string;
-  priceInAgorot: number;
-  isAvailable: boolean;
-};
-
-export default function AdminMenuManager({
-  menuItems,
-  toppings,
-}: {
-  menuItems: AdminMenuItem[];
-  toppings: AdminTopping[];
+type Entry = { id: string; name: string; priceInAgorot: number; isAvailable: boolean; archivedAt: string | null; toppingIds?: string[] };
+type Menu = { menuItems: Entry[]; toppings: Entry[] };
+export default function AdminMenuManager(initial: Menu) {
+  const [data, setData] = useState(initial);
+  const [busy, setBusy] = useState(false);
+  const inFlight = useRef(false);
+  const [message, setMessage] = useState('');
+  const [editing, setEditing] = useState<{ entity: 'item' | 'topping'; entry?: Entry } | null>(null);
+  async function save(body: object, create = false) {
+    if (inFlight.current) return;
+    inFlight.current = true; setBusy(true); setMessage('');
+    try {
+      const response = await fetch('/api/admin/menu', { method: create ? 'POST' : 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      if (response.status === 401) { window.location.replace('/admin/login'); return; }
+      const result = await response.json();
+      if (!response.ok) { setMessage(result.message ?? 'تعذر الحفظ'); return; }
+      setEditing(null);
+      const refreshed = await fetch('/api/admin/menu', { cache: 'no-store' });
+      if (!refreshed.ok) throw new Error();
+      setData(await refreshed.json()); setMessage('تم حفظ التغييرات');
+    } catch { setMessage('تعذر تأكيد التغييرات، حدّث الصفحة للتحقق قبل إعادة المحاولة'); }
+    finally { inFlight.current = false; setBusy(false); }
+  }
+  return <section className="space-y-6 p-5" dir="rtl">
+    <h1 className="text-3xl font-black">إدارة القائمة والإضافات</h1>
+    {message && <p role="status" className="rounded-xl bg-yellow p-4">{message}</p>}
+    {editing && <Editor key={`${editing.entity}:${editing.entry?.id ?? 'new'}`} {...editing} toppings={data.toppings}
+      busy={busy} onCancel={() => setEditing(null)} onSave={save} />}
+    <fieldset disabled={busy} className="grid gap-6 disabled:opacity-60 lg:grid-cols-2">
+      {(['item', 'topping'] as const).map((entity) => <section key={entity} className="min-w-0 rounded-3xl border border-blue/20 bg-white p-5">
+        <h2 className="mb-4 text-2xl font-black">{entity === 'item' ? 'الأصناف' : 'الإضافات'}</h2>
+        <button onClick={() => setEditing({ entity })} className="mb-4 min-h-11 rounded-xl bg-blue px-4 text-white">{entity === 'item' ? 'إضافة صنف' : 'إضافة جديدة'}</button>
+        <div className="space-y-3">{(entity === 'item' ? data.menuItems : data.toppings).map((entry) => <article key={entry.id} aria-label={entry.name} className="rounded-xl border border-blue/20 p-4">
+          <h3 className="break-words font-bold">{entry.name} — <bdi>{formatMoney(entry.priceInAgorot)}</bdi></h3>
+          <p className="my-2 text-sm">{entry.archivedAt ? 'مؤرشف' : entry.isAvailable ? 'متوفر' : 'غير متوفر'}</p>
+          <div className="flex flex-wrap gap-2">
+            <button onClick={() => setEditing({ entity, entry })} className="min-h-11 rounded-lg bg-yellow px-3">تعديل</button>
+            {!entry.archivedAt && <button onClick={() => void save({ entity, id: entry.id, isAvailable: !entry.isAvailable })} className="min-h-11 rounded-lg border px-3">{entry.isAvailable ? 'تعطيل' : 'تفعيل'}</button>}
+            <button onClick={() => {
+              if (entry.archivedAt || window.confirm('أرشفة هذا العنصر وإخفاؤه من قائمة العملاء؟')) void save({ entity, id: entry.id, archived: !entry.archivedAt });
+            }} className="min-h-11 rounded-lg border px-3">{entry.archivedAt ? 'استعادة' : 'أرشفة'}</button>
+          </div>
+        </article>)}</div>
+      </section>)}
+    </fieldset>
+  </section>;
+}
+function Editor({ entity, entry, toppings, busy, onCancel, onSave }: {
+  entity: 'item' | 'topping'; entry?: Entry; toppings: Entry[]; busy: boolean;
+  onCancel: () => void; onSave: (body: object, create: boolean) => Promise<void>;
 }) {
-  const [menu, setMenu] = useState(menuItems);
-  const [toppingList, setToppingList] = useState(toppings);
-  const [menuForm, setMenuForm] = useState({ name: '', priceInAgorot: '500', isAvailable: true });
-  const [toppingForm, setToppingForm] = useState({ name: '', priceInAgorot: '0', isAvailable: true });
-
-  const createMenuItem = async () => {
-    const response = await fetch('/api/admin/menu', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ entity: 'item', ...menuForm, priceInAgorot: Number(menuForm.priceInAgorot) }),
-    });
-    if (response.ok) {
-      const data = await response.json();
-      setMenu((current) => [...current, data.item]);
-      setMenuForm({ name: '', priceInAgorot: '500', isAvailable: true });
-    }
-  };
-
-  const createTopping = async () => {
-    const response = await fetch('/api/admin/menu', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ entity: 'topping', ...toppingForm, priceInAgorot: Number(toppingForm.priceInAgorot) }),
-    });
-    if (response.ok) {
-      const data = await response.json();
-      setToppingList((current) => [...current, data.topping]);
-      setToppingForm({ name: '', priceInAgorot: '0', isAvailable: true });
-    }
-  };
-
-  const toggleMenuAvailability = async (id: string, isAvailable: boolean) => {
-    await fetch('/api/admin/menu', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, entity: 'item', isAvailable }),
-    });
-    setMenu((current) => current.map((item) => item.id === id ? { ...item, isAvailable } : item));
-  };
-
-  const toggleToppingAvailability = async (id: string, isAvailable: boolean) => {
-    await fetch('/api/admin/menu', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, entity: 'topping', isAvailable }),
-    });
-    setToppingList((current) => current.map((topping) => topping.id === id ? { ...topping, isAvailable } : topping));
-  };
-
-  return (
-    <div className="grid gap-6 lg:grid-cols-2" dir="rtl">
-      <div className="rounded-[28px] bg-[#FFFDF0] p-5 shadow-md ring-1 ring-[#1E56C9]/10">
-        <h2 className="mb-4 text-2xl font-black text-[#1E56C9]">إدارة القائمة</h2>
-        <div className="space-y-3">
-          <input value={menuForm.name} onChange={(event) => setMenuForm({ ...menuForm, name: event.target.value })} className="w-full rounded-2xl border p-3" placeholder="اسم الصنف" />
-          <input type="number" value={menuForm.priceInAgorot} onChange={(event) => setMenuForm({ ...menuForm, priceInAgorot: event.target.value })} className="w-full rounded-2xl border p-3" placeholder="السعر بالاغورة" />
-          <label className="flex items-center gap-2 text-[#1E56C9] font-bold"><input type="checkbox" checked={menuForm.isAvailable} onChange={(event) => setMenuForm({ ...menuForm, isAvailable: event.target.checked })} /> متوفر</label>
-          <button onClick={createMenuItem} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#1E56C9] px-4 py-3 text-lg font-bold text-white"><Plus className="h-5 w-5" /> إضافة صنف</button>
-        </div>
-
-        <div className="mt-6 space-y-3">
-          {menu.map((item) => (
-            <div key={item.id} className="rounded-2xl border border-[#1E56C9]/10 bg-white p-3">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <div className="font-black text-[#1E56C9]">{item.name}</div>
-                  <div className="text-sm text-[#EA4933]">{formatMoney(item.priceInAgorot)}</div>
-                </div>
-                <div className="flex gap-2">
-                  <button onClick={() => toggleMenuAvailability(item.id, !item.isAvailable)} className="rounded-full bg-[#FFD73E] px-3 py-1 text-xs font-bold text-[#1E56C9]">{item.isAvailable ? 'تعطيل' : 'تفعيل'}</button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="rounded-[28px] bg-[#FFFDF0] p-5 shadow-md ring-1 ring-[#1E56C9]/10">
-        <h2 className="mb-4 text-2xl font-black text-[#1E56C9]">إدارة الإضافات</h2>
-        <div className="space-y-3">
-          <input value={toppingForm.name} onChange={(event) => setToppingForm({ ...toppingForm, name: event.target.value })} className="w-full rounded-2xl border p-3" placeholder="اسم الإضافة" />
-          <input type="number" value={toppingForm.priceInAgorot} onChange={(event) => setToppingForm({ ...toppingForm, priceInAgorot: event.target.value })} className="w-full rounded-2xl border p-3" placeholder="سعر الإضافة" />
-          <label className="flex items-center gap-2 text-[#1E56C9] font-bold"><input type="checkbox" checked={toppingForm.isAvailable} onChange={(event) => setToppingForm({ ...toppingForm, isAvailable: event.target.checked })} /> متوفر</label>
-          <button onClick={createTopping} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#EA4933] px-4 py-3 text-lg font-bold text-white"><Plus className="h-5 w-5" /> إضافة إضافة</button>
-        </div>
-
-        <div className="mt-6 space-y-3">
-          {toppingList.map((topping) => (
-            <div key={topping.id} className="rounded-2xl border border-[#1E56C9]/10 bg-white p-3">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <div className="font-black text-[#1E56C9]">{topping.name}</div>
-                  <div className="text-sm text-[#EA4933]">{formatMoney(topping.priceInAgorot)}</div>
-                </div>
-                <div className="flex gap-2">
-                  <button onClick={() => toggleToppingAvailability(topping.id, !topping.isAvailable)} className="rounded-full bg-[#FFD73E] px-3 py-1 text-xs font-bold text-[#1E56C9]">{topping.isAvailable ? 'تعطيل' : 'تفعيل'}</button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
+  const [name, setName] = useState(entry?.name ?? '');
+  const [price, setPrice] = useState(entry ? (entry.priceInAgorot / 100).toFixed(2) : '0');
+  const [available, setAvailable] = useState(entry?.isAvailable ?? true);
+  const [ids, setIds] = useState(entry?.toppingIds?.filter((id) => toppings.some((topping) => topping.id === id && !topping.archivedAt)) ?? []);
+  return <form onSubmit={(event) => {
+    event.preventDefault();
+    if (!/^\d+(\.\d{1,2})?$/.test(price)) return;
+    const [whole, fraction = ''] = price.split('.');
+    void onSave({ entity, ...(entry ? { id: entry.id } : {}), name, priceInAgorot: Number(whole) * 100 + Number(fraction.padEnd(2, '0')),
+      isAvailable: available, ...(entity === 'item' ? { toppingIds: ids } : {}) }, !entry);
+  }} className="rounded-3xl border-2 border-blue bg-cream p-5">
+    <fieldset disabled={busy} className="space-y-4">
+      <legend className="mb-3 text-xl font-bold">{entry ? 'تعديل العنصر' : 'عنصر جديد'}</legend>
+      <label className="block">الاسم<input required minLength={2} maxLength={80} value={name} onChange={(event) => setName(event.target.value)} className="mt-1 block min-h-11 w-full rounded-lg border bg-white p-3" /></label>
+      <label className="block">السعر بالشيكل<input required inputMode="decimal" pattern="[0-9]+(\.[0-9]{1,2})?" value={price} onChange={(event) => setPrice(event.target.value)} className="mt-1 block min-h-11 w-full rounded-lg border bg-white p-3" /></label>
+      <label className="flex gap-3"><input type="checkbox" checked={available} onChange={(event) => setAvailable(event.target.checked)} />متوفر</label>
+      {entity === 'item' && <fieldset className="flex flex-wrap gap-4"><legend className="mb-2 font-bold">الإضافات المسموحة</legend>
+        {toppings.filter((topping) => !topping.archivedAt).map((topping) => <label className="flex min-h-11 items-center gap-2" key={topping.id}>
+          <input type="checkbox" checked={ids.includes(topping.id)} onChange={() => setIds((old) => old.includes(topping.id) ? old.filter((id) => id !== topping.id) : [...old, topping.id])} />{topping.name}
+        </label>)}
+      </fieldset>}
+      <div className="flex gap-3"><button className="min-h-11 rounded-xl bg-blue px-5 text-white">{busy ? 'جاري الحفظ…' : 'حفظ'}</button>
+        <button type="button" onClick={onCancel} className="min-h-11 rounded-xl border px-5">إلغاء</button></div>
+    </fieldset>
+  </form>;
 }

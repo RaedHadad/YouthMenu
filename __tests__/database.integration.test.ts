@@ -1,3 +1,8 @@
+import { pickupOrder } from '@/lib/admin/pickup';
+import { orderHistory } from '@/lib/admin/history';
+import { takeQuota } from '@/lib/rate-limit';
+import { mutateMenu, getAdminMenu } from '@/lib/admin/menu';
+import { handleCustomerRealtime } from '@/lib/orders/realtime';
 import { flushOutbox } from '@/lib/realtime/outbox';
 import { activeOrders, updateKitchenOrder } from '@/lib/admin/orders';
 import { createAdminSession, findAdminSession, revokeAdminSession, sessionHash } from '@/lib/admin/session';
@@ -570,13 +575,116 @@ describe('PostgreSQL migrations and relational invariants', () => {
     const publish = vi.fn(async () => {});
     await Promise.all([flushOutbox(db, publish), flushOutbox(db, publish)]);
     expect(publish).toHaveBeenCalledTimes(1);
-    expect(publish).toHaveBeenCalledWith(event.id);
+    expect(publish).toHaveBeenCalledWith(event.id, event.orderId);
     const failed = await db.realtimeEvent.create({ data: { orderId: 'test-order-2' } });
     expect(await flushOutbox(db, async () => { throw new Error('Provider offline'); })).toMatchObject({ failed: 1 });
     expect(await db.realtimeEvent.findUniqueOrThrow({ where: { id: failed.id } })).toMatchObject({ deliveredAt: null, attempts: 1, leaseToken: null });
     await db.realtimeEvent.update({ where: { id: failed.id }, data: { nextAttemptAt: new Date(0), leaseUntil: new Date(0), leaseToken: 'abandoned' } });
     expect(await flushOutbox(db, publish)).toMatchObject({ delivered: 1 });
     expect(await db.realtimeEvent.findUniqueOrThrow({ where: { id: failed.id } })).toMatchObject({ deliveredAt: expect.any(Date), attempts: 2 });
+  });
+
+  it('authorizes customer realtime only for the matching access credential and exact channel', async () => {
+    const { input } = await orderFixture(db);
+    const created = await (await handleCreateOrder(orderRequest(input), db)).json();
+    const second = await (await handleCreateOrder(orderRequest(input), db)).json();
+    const request = (token?: string) => new Request('http://localhost/token', { method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : {} });
+    for (const token of [undefined, created.pickupToken, second.customerAccessToken]) {
+      expect((await handleCustomerRealtime(request(token), created.orderId, db)).status).toBe(404);
+    }
+    expect((await handleCustomerRealtime(request(created.customerAccessToken), 'unknown', db)).status).toBe(404);
+    vi.stubEnv('ABLY_API_KEY', 'test.key:local-only-test-key');
+    try {
+      const result = await handleCustomerRealtime(request(created.customerAccessToken), created.orderId, db);
+      expect(result.status).toBe(200);
+      expect(result.headers.get('cache-control')).toContain('no-store');
+      const token = await result.json();
+      expect(JSON.parse(token.capability)).toEqual({ [`youthmenu:order:${created.orderId}`]: ['subscribe'] });
+      expect(token.ttl).toBe(300000);
+      expect(JSON.stringify(token)).not.toContain(created.customerAccessToken);
+      expect(JSON.stringify(token)).not.toContain('local-only-test-key');
+    } finally { vi.stubEnv('ABLY_API_KEY', ''); }
+  });
+
+  it('updates estimates without starting preparation and rejects invalid or stale estimates', async () => {
+    const order = await db.order.create({ data: orderData() });
+    await updateKitchenOrder(db, { id: order.id, expectedStatus: 'PENDING', status: 'PENDING', estimatedMinutes: 17 });
+    expect(await db.order.findUniqueOrThrow({ where: { id: order.id } })).toMatchObject({ status: 'PENDING', estimatedMinutes: 17 });
+    for (const estimatedMinutes of [0, 181, 1.5, '15', null]) {
+      await expect(updateKitchenOrder(db, { id: order.id, expectedStatus: 'PENDING', status: 'PENDING', estimatedMinutes })).rejects.toMatchObject({ status: 400 });
+    }
+    await updateKitchenOrder(db, { id: order.id, expectedStatus: 'PENDING', status: 'PREPARING' });
+    await expect(updateKitchenOrder(db, { id: order.id, expectedStatus: 'PENDING', status: 'PENDING', estimatedMinutes: 20 })).rejects.toMatchObject({ status: 409 });
+    await updateKitchenOrder(db, { id: order.id, expectedStatus: 'PREPARING', status: 'PREPARING', estimatedMinutes: 30 });
+    expect(await db.realtimeEvent.count({ where: { orderId: order.id } })).toBe(3);
+  });
+
+  it('manages menu records and assignments while preserving ordered snapshots', async () => {
+    const suffix = tokenHash().slice(0, 8);
+    const topping = await mutateMenu(db, { entity: 'topping', name: `جبنة ${suffix}`, priceInAgorot: 125 }, true);
+    const item = await mutateMenu(db, { entity: 'item', name: `توست ${suffix}`, priceInAgorot: 500, toppingIds: [topping!.id] }, true);
+    const input = { menuItemId: item!.id, selectedToppingIds: [topping!.id], quantity: 2, customerName: 'أحمد' };
+    const order = await (await handleCreateOrder(orderRequest(input), db)).json();
+    expect(order.totalAmount).toBe(1250);
+    await mutateMenu(db, { entity: 'item', id: item!.id, name: `توست جديد ${suffix}`, priceInAgorot: 700, toppingIds: [] }, false);
+    expect((await getAdminMenu(db)).menuItems.find((row) => row.id === item!.id)?.toppingIds).toEqual([]);
+    expect((await db.order.findUniqueOrThrow({ where: { id: order.orderId }, include: { items: true } })).items[0].unitPrice).toBe(500);
+    for (const body of [
+      { entity: 'item', id: item!.id, priceInAgorot: -1 },
+      { entity: 'item', id: item!.id, priceInAgorot: '700' },
+      { entity: 'item', id: item!.id, toppingIds: ['missing'] },
+      { entity: 'topping', id: topping!.id, toppingIds: [] },
+    ]) await expect(mutateMenu(db, body, false)).rejects.toMatchObject({ status: 400 });
+    await expect(mutateMenu(db, { entity: 'topping', name: `جبنة ${suffix}`, priceInAgorot: 0 }, true)).rejects.toMatchObject({ status: 409 });
+    await mutateMenu(db, { entity: 'item', id: item!.id, archived: true }, false);
+    expect((await getCustomerMenu(db)).some((row) => row.id === item!.id)).toBe(false);
+    await mutateMenu(db, { entity: 'item', id: item!.id, archived: false, isAvailable: false }, false);
+    expect((await handleCreateOrder(orderRequest({ ...input, selectedToppingIds: [] }), db)).status).toBe(400);
+    await mutateMenu(db, { entity: 'topping', id: topping!.id, archived: true }, false);
+    await expect(mutateMenu(db, { entity: 'item', id: item!.id, toppingIds: [topping!.id] }, false)).rejects.toMatchObject({ status: 400 });
+  });
+
+  it('requires READY pickup credentials and permits exactly one concurrent cash collection', async () => {
+    const { input } = await orderFixture(db);
+    const created = await (await handleCreateOrder(orderRequest(input), db)).json();
+    const admins = await Promise.all([1, 2].map((n) => db.admin.create({ data: { email: `pickup-${n}@example.com`, passwordHash: 'unused' } })));
+    await expect(pickupOrder(db, admins[0].id, { pickupToken: created.customerAccessToken })).rejects.toMatchObject({ status: 404 });
+    await expect(pickupOrder(db, admins[0].id, { pickupToken: created.pickupToken })).rejects.toMatchObject({ status: 409 });
+    await db.order.update({ where: { id: created.orderId }, data: { status: 'READY', readyAt: new Date() } });
+    expect(await pickupOrder(db, admins[0].id, { pickupToken: created.pickupToken })).toMatchObject({ collected: false, order: { totalAmount: created.totalAmount } });
+    expect((await db.order.findUniqueOrThrow({ where: { id: created.orderId } })).paymentStatus).toBe('UNPAID');
+    const results = await Promise.allSettled(admins.map((admin) => pickupOrder(db, admin.id, { pickupToken: created.pickupToken, confirm: true })));
+    expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+    const stored = await db.order.findUniqueOrThrow({ where: { id: created.orderId } });
+    expect(stored).toMatchObject({ status: 'COLLECTED', paymentMethod: 'CASH', paymentStatus: 'PAID', collectedAt: expect.any(Date) });
+    expect(admins.map((admin) => admin.id)).toContain(stored.collectedByAdminId);
+    expect((await activeOrders(db)).some((order) => order.id === created.orderId)).toBe(false);
+    expect(await db.realtimeEvent.count({ where: { orderId: created.orderId } })).toBe(2);
+    await expect(pickupOrder(db, admins[0].id, { pickupToken: created.pickupToken, confirm: true })).rejects.toMatchObject({ status: 409 });
+    const history = await orderHistory(db, { q: String(stored.orderNumber), status: 'COLLECTED' });
+    expect(history.orders.map((order) => order.id)).toContain(stored.id);
+    expect(JSON.stringify(history.orders)).not.toContain(stored.pickupTokenHash);
+  });
+
+  it('rejects cancelled pickup and limits shared request quotas atomically', async () => {
+    const { input } = await orderFixture(db);
+    const created = await (await handleCreateOrder(orderRequest(input), db)).json();
+    await db.order.update({ where: { id: created.orderId }, data: { status: 'CANCELLED', cancelledAt: new Date() } });
+    await expect(pickupOrder(db, 'unused', { pickupToken: created.pickupToken, confirm: true })).rejects.toMatchObject({ status: 409 });
+    const results = await Promise.all(Array.from({ length: 8 }, () => takeQuota(db, 'test-quota', 3)));
+    expect(results.filter(Boolean)).toHaveLength(3);
+    await db.adminLoginLimit.update({ where: { key: 'test-quota' }, data: { windowStartedAt: new Date(0) } });
+    expect(await takeQuota(db, 'test-quota', 3)).toBe(true);
+  });
+
+  it('bounds history pages and filters by status, name and date', async () => {
+    await db.order.createMany({ data: Array.from({ length: 27 }, () => ({ ...orderData(), customerName: 'اختبار التصفح' })) });
+    const first = await orderHistory(db, { q: 'اختبار التصفح', status: 'PENDING' });
+    expect(first.total).toBe(27); expect(first.orders).toHaveLength(25);
+    const second = await orderHistory(db, { q: 'اختبار التصفح', page: '2' });
+    expect(second.orders).toHaveLength(2);
+    expect(second.orders.some((order) => first.orders.some((old) => old.id === order.id))).toBe(false);
+    expect((await orderHistory(db, { q: 'اختبار التصفح', date: '2000-01-01' })).total).toBe(0);
   });
 
 });

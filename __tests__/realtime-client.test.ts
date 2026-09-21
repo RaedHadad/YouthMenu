@@ -39,7 +39,7 @@ it('obtains credentials only through the authenticated endpoint and handles expi
   const cleanup = connectKitchen(vi.fn(), vi.fn(), unauthorized);
   const callback = vi.fn();
   await fake.auth!({}, callback);
-  expect(request).toHaveBeenCalledWith('/api/admin/realtime-token', { method: 'POST', cache: 'no-store' });
+  expect(request).toHaveBeenCalledWith('/api/admin/realtime-token', { method: 'POST', cache: 'no-store', headers: {} });
   expect(unauthorized).toHaveBeenCalledOnce();
   expect(callback).toHaveBeenCalledWith('Realtime authentication unavailable', null);
   cleanup();

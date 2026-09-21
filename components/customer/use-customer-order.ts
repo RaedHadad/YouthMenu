@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { connectCustomer } from '@/lib/realtime/client';
 import type { CreateOrderInput } from '@/lib/validation';
-import { customerOrderSchema, fetchOrderStatus, PENDING_ORDER_STORAGE, persistCompletedOrder, preparePendingOrder, readSavedOrder, SubmissionError, submitPendingOrder, type PendingOrder, type SavedOrder } from '@/lib/client-order';
+import { CURRENT_ORDER_STORAGE, customerOrderSchema, fetchOrderStatus, PENDING_ORDER_STORAGE, persistCompletedOrder, preparePendingOrder, readSavedOrder, SubmissionError, submitPendingOrder, type PendingOrder, type SavedOrder } from '@/lib/client-order';
 
 export function useCustomerOrder() {
   const [order, setOrder] = useState<SavedOrder | null>(null);
@@ -11,6 +12,7 @@ export function useCustomerOrder() {
   const [blocked, setBlocked] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [live, setLive] = useState(false);
   const inFlight = useRef(false);
   const orderId = order?.orderId;
   const accessToken = order?.customerAccessToken;
@@ -49,22 +51,46 @@ export function useCustomerOrder() {
     if (!orderId || !accessToken) return;
     const controller = new AbortController();
     const reference = { orderId, customerAccessToken: accessToken };
+    let running = false;
+    let queued = false;
     async function refresh() {
+      if (controller.signal.aborted) return;
+      if (running) { queued = true; return; }
+      running = true;
       try {
-        const status = await fetchOrderStatus(reference, controller.signal);
+        const status = await fetchOrderStatus(reference, AbortSignal.any([controller.signal, AbortSignal.timeout(10000)]));
         if (!controller.signal.aborted) {
           setOrder((previous) => previous ? { ...previous, ...status } : previous);
           setError('');
         }
       } catch {
         if (!controller.signal.aborted) setError('تعذر تحديث حالة الطلب، سنحاول مجدداً.');
+      } finally {
+        running = false;
+        if (queued && !controller.signal.aborted) { queued = false; void refresh(); }
       }
     }
+    const disconnect = connectCustomer(orderId, accessToken, () => { void refresh(); }, (value) => {
+      if (!controller.signal.aborted) setLive(value);
+    });
+    const recover = () => { if (document.visibilityState === 'visible') void refresh(); };
     void refresh();
     const timer = setInterval(refresh, 8000);
-    return () => { controller.abort(); clearInterval(timer); };
+    window.addEventListener('online', recover);
+    document.addEventListener('visibilitychange', recover);
+    return () => {
+      controller.abort(); clearInterval(timer); disconnect();
+      window.removeEventListener('online', recover);
+      document.removeEventListener('visibilitychange', recover);
+    };
   // Only resubscribe when the access reference changes, not each status update.
   }, [orderId, accessToken]);
+
+  useEffect(() => {
+    if (!order) return;
+    try { localStorage.setItem(CURRENT_ORDER_STORAGE, JSON.stringify(order)); }
+    catch { /* The receipt remains usable in memory when browser storage is unavailable. */ }
+  }, [order]);
 
   async function send(attempt: PendingOrder) {
     setPending(attempt);
@@ -99,5 +125,5 @@ export function useCustomerOrder() {
     }
   }
 
-  return { order, pending, restoring, blocked, submitting, error, submit };
+  return { order, pending, restoring, blocked, submitting, error, live, submit };
 }

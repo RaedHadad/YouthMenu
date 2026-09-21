@@ -9,7 +9,7 @@ remains the source of truth. Official references:
 - https://ably.com/docs/api/rest-sdk/authentication
 - https://ably.com/docs/api/rest-api
 
-Every new order and kitchen status change inserts a RealtimeEvent inside the same
+Every new order, kitchen status change and estimate update inserts a RealtimeEvent inside the same
 transaction. Replaying an existing order creates no second event. After the HTTP
 response, Next.js `after()` attempts delivery. Dashboard snapshot requests also
 trigger delivery, so pending events recover while the kitchen is open.
@@ -24,7 +24,7 @@ claim is made. Delivery failures do not roll back committed orders.
 
 Create separate Ably apps/keys for development and production. Set ABLY_API_KEY
 only in the server environment. Restrict its capability to publish and subscribe
-on `youthmenu:kitchen`. Never use a NEXT_PUBLIC variable for this key. Apply the
+on `youthmenu:kitchen` and `youthmenu:order:*`. Never use a NEXT_PUBLIC variable for this key. Apply the
 `202609210003_realtime_outbox` migration before running the updated application.
 
 Authenticated admins obtain a five-minute signed TokenRequest from
@@ -83,5 +83,5 @@ Live Ably delivery has not been exercised because no real API key is configured;
 the user chose local tests. Before deployment, configure the key and open two admin
 browsers: create an order, change status and cancel it, checking prompt updates in
 both. Interrupt connectivity and restore it, then verify reconciliation. Also test
-an actual publisher outage and scheduler recovery. Customer private subscriptions
-and customer live estimate updates remain Phase 9.
+an actual publisher outage and scheduler recovery. Phase 9 adds customer private subscriptions and live estimates; see
+[customer live status](customer-live-status.md).

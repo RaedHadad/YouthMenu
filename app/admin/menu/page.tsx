@@ -1,12 +1,8 @@
 import { prisma } from '@/lib/prisma';
 import { requireAdminPage } from '@/lib/auth';
+import { getAdminMenu } from '@/lib/admin/menu';
 import AdminMenuManager from '@/components/admin-menu-manager';
-
 export default async function AdminMenuPage() {
   await requireAdminPage();
-
-  const menuItems = await prisma.menuItem.findMany({ orderBy: { createdAt: 'asc' } });
-  const toppings = await prisma.topping.findMany({ orderBy: { createdAt: 'asc' } });
-
-  return <AdminMenuManager menuItems={menuItems} toppings={toppings} />;
+  return <AdminMenuManager {...await getAdminMenu(prisma)} />;
 }

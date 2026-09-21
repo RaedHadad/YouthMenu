@@ -47,7 +47,7 @@ These conservative limits suit a small kitchen team. An attacker can consume the
 shared quota and temporarily prevent login; production ingress controls and
 monitoring should complement it. Existing sessions continue working. Review quota
 settings if staffing or traffic increases. Fixed windows permit a burst around a
-window boundary. Order creation and pickup rate limits remain later-phase work.
+window boundary. Order creation and pickup now have shared PostgreSQL quotas; see deployment.md.
 
 ## Revocation and maintenance
 

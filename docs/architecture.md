@@ -2,7 +2,7 @@
 
 ## Current checkpoint
 
-Phases 1–8 establish the existing Next.js 16 App Router / React 19 / TypeScript /
+Phases 1–9 establish the existing Next.js 16 App Router / React 19 / TypeScript /
 Tailwind 4 foundation, PostgreSQL data model, customer menu, server pricing and
 protected order credentials with retry recovery, plus printable Arabic receipts and protected admin sessions. This directory was not empty. Existing database, ordering,
 admin and scanner code has been preserved, with compilation fixes and database integration; it is not yet
@@ -107,17 +107,12 @@ Run npm run check after every major phase and npm run build when appropriate.
 A successful build does not establish database, camera, live-update or security
 correctness.
 
-## Existing implementation issues to resolve before deployment
+## Remaining release gates
 
-- Ably kitchen implementation passes local tests; live-provider delivery still needs a configured-key smoke test.
-- Admin default estimates and the remaining receipt/status handling need the
-  planned Phase 9 review. Customer receipt no longer invents menu or QR data.
-- The scanner calls an endpoint that has not yet been implemented; pickup confirmation
-  and atomic redemption are still missing.
-- Customer order/pickup rate limits, pagination and full history filters are unfinished. Admin origin checks and shared login limits are implemented.
-- Database migrations and 36 PostgreSQL integration tests now pass. Full admin
-  security tests, pickup concurrency tests and real-device testing are outstanding.
-
+Live Ably delivery, physical phone-camera/printing checks, production environment
+setup and deployment are still required. See [final verification](final-verification.md)
+and [release runbook](deployment.md). Code now covers pickup, history, shared quotas
+and all requested implementation phases.
 
 ## Phase 2 checkpoint
 
@@ -271,3 +266,39 @@ The browser suite disables real provider credentials. SDK events and reconnects
 are simulated in unit tests; real Ably delivery remains a pre-deployment check,
 as requested by the user. See [setup and limits](realtime.md).
 Next is Phase 9: customer live status and preparation estimates.
+
+
+## Phase 9 checkpoint — local verification
+
+Customers receive a short-lived subscribe-only capability for their own order after
+access-token verification. Outbox delivery now covers both kitchen and order
+channels. Customer snapshots refresh on events/reconnect/visibility/network changes
+and polling, with serialized requests and persisted latest receipt details.
+
+Kitchen cards provide preset/custom estimates independent of status transitions.
+Server validation restricts estimates to 1–180 minutes in waiting/preparing states
+and rejects stale status expectations. Customers see an unknown-time message until
+an estimate is set. Ready status always shows the green banner; optional user-enabled
+sound and notifications are guarded and deduplicated within a tab across reloads.
+
+Local checks include 62 unit tests, 43 PostgreSQL tests and 21 Chromium tests.
+See [customer live status and alert limitations](customer-live-status.md).
+Next is Phase 10: admin menu and topping management.
+
+
+## Phase 10 checkpoint
+
+Menu/topping administration supports creation, editing, availability, archives,
+restoration and topping assignments. Server validation and serializable transactions
+protect mutations; order snapshots remain unchanged. The reusable Arabic form uses
+shekel prices, explicit labels, pending states and server-confirmed refreshes.
+
+Verification: 62 unit tests, 44 database tests, a focused menu-management browser
+workflow, TypeScript, ESLint and production build. Full browser regressions were
+not repeated in this phase to respect the user's credit preference.
+See [menu operations](menu-management.md). Next: Phase 11, secure QR cash pickup.
+
+## Phases 11–15 checkpoint
+
+See [final verification](final-verification.md) for pickup, history, security, responsive
+checks and Vercel preparation. Live-provider/device checks remain pre-launch gates.

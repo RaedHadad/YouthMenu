@@ -267,7 +267,7 @@ test('protects every admin page and API from missing and forged cookies', async 
       await page.goto(path);
       await expect(page).toHaveURL(/\/admin\/login$/);
     }
-    for (const [path, method] of [['menu', 'GET'], ['menu', 'POST'], ['menu', 'PATCH'], ['orders', 'GET'], ['orders', 'PATCH'], ['realtime-token', 'POST']]) {
+    for (const [path, method] of [['menu', 'GET'], ['menu', 'POST'], ['menu', 'PATCH'], ['orders', 'GET'], ['orders', 'PATCH'], ['realtime-token', 'POST'], ['scanner', 'POST']]) {
       const response = await context.request.fetch(`/api/admin/${path}`, { method, data: {} });
       expect(response.status()).toBe(401);
       expect(response.headers()['cache-control']).toContain('no-store');
@@ -354,4 +354,112 @@ test('kitchen receives orders through fallback and moves them safely between col
   expect((await db.order.findUniqueOrThrow({ where: { id: created.orderId } })).status).toBe('CANCELLED');
   expect(await db.realtimeEvent.count({ where: { orderId: created.orderId } })).toBe(4);
   expect((await context.request.get('/api/internal/realtime')).status()).toBe(401);
+});
+
+test('customer automatically receives estimates and ready status with a single optional alert', async ({ page, context }) => {
+  test.setTimeout(60000);
+  await page.addInitScript(() => {
+    class TestNotification {
+      static permission = 'default';
+      static async requestPermission() { TestNotification.permission = 'granted'; return 'granted'; }
+      constructor() { sessionStorage.setItem('notification-count', String(Number(sessionStorage.getItem('notification-count') || 0) + 1)); }
+    }
+    Object.defineProperty(window, 'Notification', { value: TestNotification, configurable: true });
+  });
+  await page.goto('/');
+  await page.getByRole('radio', { name: /^توست/ }).check();
+  await page.getByRole('textbox', { name: 'الاسم', exact: true }).fill('متابعة مباشرة');
+  await page.getByRole('button', { name: 'أرسل الطلب' }).click();
+  await expect(page.getByRole('heading', { name: /بون الطلب/ })).toBeVisible();
+  await page.getByRole('button', { name: 'تفعيل تنبيه الجاهزية' }).click();
+  await expect(page.getByText('تم تفعيل التنبيه في هذه الصفحة. اتركها مفتوحة لمتابعة طلبك.')).toBeVisible();
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('youthmenu_current_order')!));
+  await db.admin.create({ data: { email: 'estimate@example.com', passwordHash: await hash('Test-only-password-2026!', 12) } });
+  await context.request.post('/api/admin/login', { headers: { Origin: 'http://127.0.0.1:3107' }, data: { email: 'estimate@example.com', password: 'Test-only-password-2026!' } });
+  const change = async (expectedStatus: string, status: string, estimatedMinutes?: number) => {
+    const response = await context.request.patch('/api/admin/orders', { headers: { Origin: 'http://127.0.0.1:3107' },
+      data: { id: saved.orderId, expectedStatus, status, estimatedMinutes } });
+    expect(response.status()).toBe(200);
+  };
+  await change('PENDING', 'PENDING', 17);
+  await expect(page.getByText('الوقت المقدر: ~17 دقيقة')).toBeVisible({ timeout: 12000 });
+  await change('PENDING', 'PREPARING', 10);
+  await expect(page.getByText('طلبك قيد التحضير...', { exact: true })).toBeVisible({ timeout: 12000 });
+  await change('PREPARING', 'READY');
+  await expect(page.getByText('طلبك جاهز! تفضل بالاستلام 🎉')).toBeVisible({ timeout: 12000 });
+  await expect.poll(() => page.evaluate(() => sessionStorage.getItem('notification-count'))).toBe('1');
+  await page.evaluate(() => window.dispatchEvent(new Event('online')));
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('youthmenu_current_order')!).status)).toBe('READY');
+  await page.reload();
+  await expect(page.getByText('طلبك جاهز! تفضل بالاستلام 🎉')).toBeVisible();
+  expect(await page.evaluate(() => sessionStorage.getItem('notification-count'))).toBe('1');
+});
+
+test('kitchen sets custom preparation estimates without changing status', async ({ page, context }) => {
+  await db.admin.create({ data: { email: 'time@example.com', passwordHash: await hash('Test-only-password-2026!', 12) } });
+  await context.request.post('/api/admin/login', { headers: { Origin: 'http://127.0.0.1:3107' }, data: { email: 'time@example.com', password: 'Test-only-password-2026!' } });
+  const dish = await db.menuItem.findUniqueOrThrow({ where: { name: 'توست' } });
+  const response = await context.request.post('/api/orders', { headers: { 'Idempotency-Key': 'e'.repeat(64) },
+    data: { menuItemId: dish.id, quantity: 1, customerName: 'توقيت مخصص' } });
+  const { orderId } = await response.json();
+  await page.goto('/admin');
+  await page.getByRole('spinbutton', { name: 'الوقت المقدر بالدقائق' }).fill('23');
+  await page.getByRole('button', { name: 'تحديث الوقت' }).click();
+  await expect.poll(async () => (await db.order.findUniqueOrThrow({ where: { id: orderId } })).estimatedMinutes).toBe(23);
+  expect((await db.order.findUniqueOrThrow({ where: { id: orderId } })).status).toBe('PENDING');
+  await page.getByRole('button', { name: '30 د', exact: true }).click();
+  await page.getByRole('button', { name: 'تحديث الوقت' }).click();
+  await expect.poll(async () => (await db.order.findUniqueOrThrow({ where: { id: orderId } })).estimatedMinutes).toBe(30);
+});
+
+test('menu manager edits prices, assigns toppings and archives or restores items', async ({ page, context }) => {
+  await db.admin.create({ data: { email: 'menu@example.com', passwordHash: await hash('Test-only-password-2026!', 12) } });
+  await context.request.post('/api/admin/login', { headers: { Origin: 'http://127.0.0.1:3107' }, data: { email: 'menu@example.com', password: 'Test-only-password-2026!' } });
+  await page.goto('/admin/menu');
+  await page.getByRole('button', { name: 'إضافة جديدة', exact: true }).click();
+  await page.getByLabel('الاسم', { exact: true }).fill('جبنة جديدة');
+  await page.getByLabel('السعر بالشيكل').fill('1.25');
+  await page.getByRole('button', { name: 'حفظ', exact: true }).click();
+  await expect(page.getByRole('article', { name: 'جبنة جديدة' })).toBeVisible();
+  await page.getByRole('article', { name: 'توست', exact: true }).getByRole('button', { name: 'تعديل' }).click();
+  await page.getByLabel('السعر بالشيكل').fill('7.50');
+  await page.getByRole('checkbox', { name: 'جبنة جديدة' }).check();
+  await page.getByRole('button', { name: 'حفظ', exact: true }).click();
+  await expect(page.getByRole('article', { name: 'توست', exact: true })).toContainText('₪7.50');
+  await page.goto('/');
+  await page.getByRole('radio', { name: 'توست، ₪7.50' }).check();
+  await expect(page.getByRole('checkbox', { name: /جبنة جديدة/ })).toBeVisible();
+  await page.goto('/admin/menu');
+  page.once('dialog', (dialog) => dialog.accept());
+  await page.getByRole('article', { name: 'توست', exact: true }).getByRole('button', { name: 'أرشفة' }).click();
+  await expect(page.getByRole('article', { name: 'توست', exact: true })).toContainText('مؤرشف');
+  await page.getByRole('article', { name: 'توست', exact: true }).getByRole('button', { name: 'استعادة' }).click();
+  await expect(page.getByRole('article', { name: 'توست', exact: true })).toContainText('متوفر');
+});
+
+test('scanner previews cash pickup, confirms once and retains searchable history on mobile', async ({ page, context }, testInfo) => {
+  await page.setViewportSize({ width: 360, height: 800 });
+  await db.admin.create({ data: { email: 'pickup@example.com', passwordHash: await hash('Test-only-password-2026!', 12) } });
+  await context.request.post('/api/admin/login', { headers: { Origin: 'http://127.0.0.1:3107' }, data: { email: 'pickup@example.com', password: 'Test-only-password-2026!' } });
+  const dish = await db.menuItem.findUniqueOrThrow({ where: { name: 'توست' } });
+  const created = await (await context.request.post('/api/orders', { headers: { 'Idempotency-Key': 'd'.repeat(64) }, data: { menuItemId: dish.id, quantity: 2, customerName: 'استلام تجريبي' } })).json();
+  await db.order.update({ where: { id: created.orderId }, data: { status: 'READY', readyAt: new Date() } });
+  await page.goto('/admin/scanner');
+  await page.getByLabel('إدخال رمز QR يدوياً').fill(created.pickupToken);
+  await page.getByRole('button', { name: 'التحقق من الطلب' }).click();
+  await expect(page.getByRole('button', { name: 'تأكيد الاستلام والدفع' })).toBeVisible();
+  expect((await db.order.findUniqueOrThrow({ where: { id: created.orderId } })).status).toBe('READY');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath('pickup-mobile.png'), fullPage: true });
+  await page.getByRole('button', { name: 'تأكيد الاستلام والدفع' }).click();
+  await expect(page.getByText('تم تسليم الطلب بنجاح ✓')).toBeVisible();
+  await page.getByLabel('إدخال رمز QR يدوياً').fill(created.pickupToken);
+  await page.getByRole('button', { name: 'التحقق من الطلب' }).click();
+  await expect(page.getByText('تم استلام هذا الطلب مسبقاً')).toBeVisible();
+  await page.goto('/admin/orders');
+  await page.getByLabel('الاسم أو رقم الطلب').fill('استلام تجريبي');
+  await page.getByRole('button', { name: 'بحث', exact: true }).click();
+  await expect(page.getByText(/مدفوع نقداً/)).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath('history-mobile.png'), fullPage: true });
 });

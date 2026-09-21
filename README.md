@@ -2,14 +2,9 @@
 
 Arabic RTL food ordering for cash payment at pickup. No online payment gateway.
 
-**Status: Phases 1–7 completed; Phase 8 implemented and locally verified.** The existing partial application now has a checked
-Next.js foundation, PostgreSQL migrations, safe initial seeding and a database-driven
-Arabic customer menu with keyboard and responsive browser checks. Order requests
-now use strict validation, transactional integer pricing, protected credentials
-and safe retry recovery. Customers receive an Arabic ticket with a verified pickup QR
-and receipt-only print styling; see [receipt and print notes](docs/receipts.md).
-Later phases are still in progress; this is not ready for public production use.
-See [architecture and phase gates](docs/architecture.md).
+**Status: all 15 implementation phases delivered locally.** Live Ably, physical
+camera/printer checks and production deployment remain release gates. See
+[phase verification](docs/final-verification.md) and [Vercel runbook](docs/deployment.md).
 
 ## Local setup
 
@@ -41,8 +36,8 @@ without a reachable initialized database, the Arabic error page offers a retry.
 ```sh
 npm run check       # route types, TypeScript, ESLint, 62 unit tests
 npm run db:validate
-npm run test:db     # 41 PostgreSQL integration tests; requires TEST_DATABASE_URL
-npm run test:browser # 19 Chromium checks; requires TEST_DATABASE_URL and browser install
+npm run test:db     # 47 PostgreSQL integration tests; requires TEST_DATABASE_URL
+npm run test:browser # 23 Chromium checks; requires TEST_DATABASE_URL and browser install
 npm run build
 npm start
 ```
@@ -92,11 +87,9 @@ Use Vercel for Next.js, managed PostgreSQL for data and Ably for real-time trans
 Keep the database close to the Vercel function region. Use separate preview and
 production databases and put secrets in server environment variables.
 
-Before public deployment, finish [all phase gates](docs/architecture.md), review
-[database migration procedures](docs/database.md), run migrations, generate the
-Prisma client and pass the checks/build. Configure Ably and shared rate limiting,
-then test creation through cash pickup on actual devices. The current checkpoint
-still lacks completed live delivery, secure pickup and full authentication hardening.
+Follow the [release runbook](docs/deployment.md): configure production services,
+apply migrations, seed once, provision an admin and complete live-device checks.
+The application has not yet been deployed to production.
 
 
 ## Customer menu browser checks
@@ -114,7 +107,7 @@ submission, keyboard operation and widths of 360, 768 and 1440 pixels. Screensho
 are written to ignored `test-results/` directories. Tests also cover committed
 orders with deliberately lost responses, recovery after refresh, authorization
 headers and storage failure before submission. These tests use Chromium;
-Safari, Firefox, real-device camera and full pickup tests remain for later phases.
+Chromium pickup tests pass; Safari, Firefox and physical-device camera checks remain release gates.
 
 
 ## Order pricing and validation
@@ -144,11 +137,16 @@ loading the menu becomes the authoritative receipt price.
 An existing retry key returns its original price and credentials, even after menu
 changes. Status requests use `Authorization: Bearer <customerAccessToken>`; URL
 tokens are no longer accepted. Unknown orders and invalid credentials return the
-same 404 response. Customer order rate limiting, real-time delivery
-and secure pickup remain in later phases before production deployment.
+same 404 response. Shared order quotas and atomic cash pickup are implemented. Live provider/device
+smoke tests remain required before production deployment.
 
 ## Kitchen real-time setup
 
 See [Ably configuration, durable delivery and verification](docs/realtime.md).
 Without an Ably key the kitchen uses automatic eight-second refreshes. A live
 provider smoke test remains required before deployment.
+
+Customer order subscriptions, live estimates and optional ready alerts are described
+in [customer live status](docs/customer-live-status.md).
+
+See [menu and topping management](docs/menu-management.md) for editing and archive behavior.

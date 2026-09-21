@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useTransition } from 'react';
+import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { RefreshCw, UtensilsCrossed } from 'lucide-react';
 import type { CustomerMenuItem } from '@/lib/customer-types';
@@ -8,6 +8,7 @@ import { useCustomerOrder } from '@/components/customer/use-customer-order';
 import { DishList } from '@/components/customer/dish-list';
 import { ToppingPicker } from '@/components/customer/topping-picker';
 import { OrderForm } from '@/components/customer/order-form';
+import { useReadyAlert } from '@/components/customer/use-ready-alert';
 import { OrderReceipt } from '@/components/customer/order-receipt';
 import { MenuHeader } from '@/components/customer/menu-header';
 
@@ -19,7 +20,7 @@ export default function CustomerMenu({ menuItems }: { menuItems: CustomerMenuIte
   const [quantity, setQuantity] = useState(1);
   const [customerName, setCustomerName] = useState('');
   const [statusMessage, setStatusMessage] = useState('');
-  const { order: currentOrder, pending, restoring, blocked, submitting: isSubmitting, error, submit } = useCustomerOrder();
+  const { order: currentOrder, pending, restoring, blocked, submitting: isSubmitting, error, live, submit } = useCustomerOrder();
   const selectedItem = menuItems.find((item) => item.id === selectedItemId && item.isAvailable);
   const selectedToppings = selectedItem?.toppings.filter((topping) => topping.isAvailable && selectedToppingIds.includes(topping.id)) ?? [];
   const total = selectedItem ? (selectedItem.priceInAgorot + selectedToppings.reduce((sum, topping) => sum + topping.priceInAgorot, 0)) * quantity : 0;
@@ -48,40 +49,14 @@ export default function CustomerMenu({ menuItems }: { menuItems: CustomerMenuIte
     await submit({ menuItemId: selectedItem.id, selectedToppingIds: selectedToppings.map((topping) => topping.id), quantity, customerName: customerName.trim() });
   };
 
-  useEffect(() => {
-    if (!('Notification' in window)) return;
-    if (Notification.permission === 'granted' && currentOrder?.status === 'READY') {
-      new Notification('طلبك جاهز! 🎉', { body: 'تفضل بالاستلام' });
-    }
-  }, [currentOrder?.status]);
-
-  useEffect(() => {
-    if (currentOrder?.status !== 'READY') return;
-    const audioContext = new window.AudioContext();
-    const oscillator = audioContext.createOscillator();
-    const gain = audioContext.createGain();
-    oscillator.type = 'triangle';
-    oscillator.frequency.value = 880;
-    gain.gain.value = 0.05;
-    oscillator.connect(gain);
-    gain.connect(audioContext.destination);
-    oscillator.start();
-    oscillator.stop(audioContext.currentTime + 0.22);
-    return () => { void audioContext.close(); };
-  }, [currentOrder?.status]);
-
-  const requestBrowserNotification = async () => {
-    if (!('Notification' in window)) return;
-    const permission = await Notification.requestPermission();
-    if (permission === 'granted') {
-      new Notification('تم تفعيل الإشعارات', { body: 'سيظهر إشعار عند جاهزية الطلب' });
-    }
-  };
+  const { enableAlerts, alertMessage } = useReadyAlert(currentOrder);
 
   if (restoring) return <p role="status" className="p-12 text-center font-bold">جاري التحقق من طلبك المحفوظ…</p>;
   if (currentOrder) return <>
     {error && <p role="status" className="no-print mx-auto max-w-xl p-4 text-center">{error}</p>}
-    <OrderReceipt order={currentOrder} onRequestNotification={requestBrowserNotification} />
+    <p role="status" className="no-print pt-4 text-center text-sm">{live ? 'متصل مباشرة' : 'تُحدّث حالة طلبك تلقائياً'}</p>
+    {alertMessage && <p role="status" className="no-print p-3 text-center">{alertMessage}</p>}
+    <OrderReceipt order={currentOrder} onRequestNotification={enableAlerts} />
   </>;
   if (pending || blocked) return (
     <section className="mx-auto max-w-lg px-5 py-12 text-center">

@@ -1,5 +1,6 @@
 'use client';
 
+import { EstimatedTimePicker } from '@/components/admin/estimated-time-picker';
 import { useMemo } from 'react';
 import { useKitchenOrders } from '@/components/admin/use-kitchen-orders';
 import { getArabicStatusLabel } from '@/lib/order-utils';
@@ -98,24 +99,14 @@ export default function AdminDashboard({ initialOrders }: { initialOrders: Admin
                       <fieldset disabled={busy !== null} className="mt-4 flex flex-col gap-2 disabled:opacity-60">
                         {status === 'PENDING' && (
                           <>
-                            <p className="text-sm font-bold text-[#1E56C9]">بدء التحضير مع تحديد الوقت</p>
-                            <div className="flex flex-wrap gap-2">
-                              {[5,10,15,20,30].map((minutes) => (
-                                <button
-                                  key={minutes}
-                                  onClick={() => updateStatus(order.id, 'PREPARING', minutes)}
-                                  className="rounded-full bg-[#FFD73E] px-2.5 py-1 text-xs font-bold text-[#1E56C9]"
-                                >
-                                  {minutes} د
-                                </button>
-                              ))}
-                            </div>
                             <button onClick={() => updateStatus(order.id, 'PREPARING')} className="rounded-2xl bg-[#1E56C9] px-4 py-2 text-sm font-bold text-white">
                               بدء التحضير
                             </button>
                           </>
                         )}
 
+                        {['PENDING', 'PREPARING'].includes(status) && <EstimatedTimePicker key={`${order.id}:${order.estimatedMinutes}`}
+                          initial={order.estimatedMinutes} onSave={(minutes) => { void updateStatus(order.id, order.status, minutes); }} />}
                         {status === 'PREPARING' && (
                           <button onClick={() => updateStatus(order.id, 'READY')} className="rounded-2xl bg-[#EA4933] px-4 py-2 text-sm font-bold text-white">
                             جاهز للاستلام

@@ -1,98 +1,62 @@
 'use client';
-
 import { useEffect, useRef, useState } from 'react';
-import { BrowserMultiFormatReader, type IScannerControls } from '@zxing/browser';
-import { Camera, RefreshCcw } from 'lucide-react';
+import { BrowserQRCodeReader, type IScannerControls } from '@zxing/browser';
+import type { AdminOrderItem } from './admin-dashboard';
+import { formatMoney } from '@/lib/money';
 
 export default function QRScannerPage() {
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const [result, setResult] = useState<string>('');
+  const video = useRef<HTMLVideoElement>(null);
+  const controls = useRef<IScannerControls | null>(null);
+  const request = useRef(false);
+  const [scanning, setScanning] = useState(false);
+  const [token, setToken] = useState('');
+  const [order, setOrder] = useState<AdminOrderItem | null>(null);
+  const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
-  const [loading, setLoading] = useState(false);
-
   useEffect(() => {
-    let controls: IScannerControls | undefined;
+    if (!scanning) return;
     let disposed = false;
-    let scanned = false;
-    const controller = new AbortController();
-
-    async function lookup(pickupToken: string) {
-      setResult(pickupToken);
-      setLoading(true);
-      setMessage('تم اكتشاف الرمز بنجاح');
-      try {
-        const response = await fetch('/api/admin/scanner', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ pickupToken }),
-          signal: controller.signal,
-        });
-        const payload = await response.json();
-        if (disposed) return;
-        setMessage(response.ok
-          ? `تم العثور على الطلب: #${payload.order.orderNumber}`
-          : payload.message ?? 'رمز QR غير صالح');
-      } catch {
-        if (!disposed) setMessage('تعذر الاتصال بالخادم');
-      }
-    }
-
-    async function startScan() {
-      try {
-        if (!videoRef.current) return;
-        const reader = new BrowserMultiFormatReader();
-        controls = await reader.decodeFromConstraints(
-          { video: { facingMode: 'environment' }, audio: false },
-          videoRef.current,
-          (decoded, _error, scannerControls) => {
-            if (!decoded || scanned || disposed) return;
-            scanned = true;
-            scannerControls.stop();
-            void lookup(decoded.getText());
-          },
-        );
-        if (disposed || scanned) controls.stop();
-      } catch {
-        if (!disposed) {
-          setMessage('تعذر الوصول إلى الكاميرا');
-          setLoading(true);
-        }
-      }
-    }
-
-    void startScan();
-    return () => {
-      disposed = true;
-      controller.abort();
-      controls?.stop();
-    };
-  }, []);
-
-  return (
-    <div className="mx-auto max-w-lg p-4 text-right" dir="rtl">
-      <div className="rounded-[28px] bg-[#FFD73E] p-4 shadow-lg">
-        <div className="rounded-[22px] bg-[#FFFDF0] p-4">
-          <div className="mb-3 flex items-center justify-between">
-            <h1 className="text-3xl font-black text-[#1E56C9]">مسح QR</h1>
-            <Camera className="h-8 w-8 text-[#1E56C9]" />
-          </div>
-          <video ref={videoRef} className="aspect-video w-full rounded-2xl bg-black" playsInline muted />
-          <div className="mt-4 rounded-2xl bg-[#1E56C9] p-3 text-white font-bold text-center">
-            {message || 'امسح QR الخاص بالطلب'}
-          </div>
-          {result && (
-            <div className="mt-4 rounded-2xl border border-[#1E56C9]/20 bg-white p-3">
-              <div className="text-sm text-[#1E56C9]">الرمز المقروء:</div>
-              <div className="font-black text-[#EA4933] break-all">{result}</div>
-            </div>
-          )}
-          {loading && (
-            <button onClick={() => window.location.reload()} className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#EA4933] px-4 py-3 text-lg font-bold text-white">
-              <RefreshCcw className="h-5 w-5" /> إعادة المحاولة
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
-  );
+    let found = false;
+    const reader = new BrowserQRCodeReader();
+    void reader.decodeFromConstraints({ video: { facingMode: 'environment' }, audio: false }, video.current!, (result, _error, scanner) => {
+      if (!result || found || disposed) return;
+      found = true; scanner.stop(); setScanning(false);
+      setToken(result.getText()); void lookup(result.getText());
+    }).then((scanner) => { controls.current = scanner; if (disposed || found) scanner.stop(); })
+      .catch(() => { if (!disposed) { setMessage('تعذر الوصول إلى الكاميرا. اسمح باستخدامها ثم حاول مجدداً.'); setScanning(false); } });
+    return () => { disposed = true; controls.current?.stop(); };
+  }, [scanning]);
+  async function lookup(value: string, confirm = false) {
+    if (request.current) return;
+    request.current = true; setBusy(true); setMessage('');
+    if (!confirm) setOrder(null);
+    try {
+      const response = await fetch('/api/admin/scanner', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pickupToken: value, confirm }) });
+      if (response.status === 401) { window.location.replace('/admin/login'); return; }
+      const data = await response.json();
+      if (!response.ok) { setOrder(null); setMessage(data.message ?? 'تعذر التحقق من الطلب'); return; }
+      setOrder(data.collected ? null : data.order);
+      if (data.collected) { setToken(''); setMessage('تم تسليم الطلب بنجاح ✓'); }
+    } catch { setMessage('تعذر تأكيد النتيجة. أعد التحقق من الرمز قبل إعادة المحاولة.'); }
+    finally { request.current = false; setBusy(false); }
+  }
+  return <section className="mx-auto max-w-lg space-y-5 p-4" dir="rtl">
+    <h1 className="text-3xl font-black">امسح رمز QR</h1>
+    <video ref={video} className={`${scanning ? '' : 'hidden'} aspect-video w-full rounded-2xl bg-black`} playsInline muted />
+    <button disabled={busy} onClick={() => { setOrder(null); setMessage(''); setScanning(!scanning); }} className="min-h-12 w-full rounded-xl bg-blue p-3 font-bold text-white">{scanning ? 'إيقاف الكاميرا' : 'تشغيل الكاميرا'}</button>
+    <form onSubmit={(event) => { event.preventDefault(); void lookup(token); }} className="space-y-3">
+      <label className="block">إدخال رمز QR يدوياً<input autoComplete="off" value={token} onChange={(event) => { setToken(event.target.value.trim()); setOrder(null); }} disabled={busy || scanning} required maxLength={64} dir="ltr" className="mt-2 w-full rounded-xl border p-3" /></label>
+      <button disabled={busy || scanning} className="min-h-11 rounded-xl border border-blue px-4">التحقق من الطلب</button>
+    </form>
+    {message && <p role="status" className="rounded-xl bg-yellow p-4">{message}</p>}
+    {order && <article className="space-y-3 rounded-2xl border-2 border-blue bg-cream p-5">
+      <h2 className="text-2xl font-black">طلب #{order.orderNumber}</h2>
+      <p>الاسم: {order.customerName}</p>
+      {order.items.map((item, index) => <div key={index}><p>{item.quantity} × {item.itemName}</p><p>الإضافات: {item.toppings.map((t) => t.toppingName).join('، ') || 'لا يوجد'}</p></div>)}
+      <p className="text-2xl font-bold">الإجمالي: <bdi>{formatMoney(order.totalAmount)}</bdi></p>
+      <p>جاهز للاستلام — الدفع نقداً عند الاستلام</p>
+      <p>استلم المبلغ نقداً قبل التأكيد.</p>
+      <button disabled={busy} onClick={() => void lookup(token, true)} className="min-h-14 w-full rounded-xl bg-blue p-4 text-lg font-bold text-white">تأكيد الاستلام والدفع</button>
+    </article>}
+  </section>;
 }

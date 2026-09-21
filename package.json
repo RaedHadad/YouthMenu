@@ -22,7 +22,8 @@
     "test:db": "node --env-file-if-exists=.env.local node_modules/vitest/vitest.mjs run --config vitest.database.config.mts",
     "test:browser": "node --env-file-if-exists=.env.local scripts/test-browser.mjs",
     "admin:sessions": "node --env-file-if-exists=.env.local --import tsx scripts/admin-sessions.ts",
-    "realtime:flush": "node --env-file-if-exists=.env.local --import tsx scripts/realtime-flush.ts"
+    "realtime:flush": "node --env-file-if-exists=.env.local --import tsx scripts/realtime-flush.ts",
+    "postinstall": "prisma generate"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",

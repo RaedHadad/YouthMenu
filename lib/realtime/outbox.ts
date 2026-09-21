@@ -1,11 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import type { PrismaClient } from '@prisma/client';
 import { ablyRest, realtimeConfigured } from './server';
-import { KITCHEN_CHANNEL, ORDER_EVENT } from './config';
+import { KITCHEN_CHANNEL, ORDER_EVENT, orderChannel } from './config';
 
-type Publisher = (id: string) => Promise<void>;
-const publish: Publisher = async (id) => {
-  await ablyRest().channels.get(KITCHEN_CHANNEL).publish({ id, name: ORDER_EVENT, data: { version: 1 } });
+type Publisher = (id: string, orderId: string) => Promise<void>;
+const publish: Publisher = async (id, orderId) => {
+  const client = ablyRest();
+  await client.channels.get(KITCHEN_CHANNEL).publish({ id, name: ORDER_EVENT, data: { version: 1 } });
+  await client.channels.get(orderChannel(orderId)).publish({ id, name: ORDER_EVENT, data: { version: 1 } });
 };
 
 /** Leased, bounded, at-least-once delivery. Duplicate invalidations are harmless. */
@@ -24,7 +26,7 @@ export async function flushOutbox(db: PrismaClient, send: Publisher = publish) {
     } });
     if (!claimed.count) continue;
     try {
-      await send(event.id);
+      await send(event.id, event.orderId);
       await db.realtimeEvent.updateMany({ where: { id: event.id, leaseToken }, data: {
         deliveredAt: new Date(), leaseUntil: null, leaseToken: null,
       } });

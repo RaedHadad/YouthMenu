@@ -58,10 +58,10 @@ export function OrderReceipt({ order, onRequestNotification }: {
               className="min-h-12 flex-1 rounded-2xl bg-blue px-4 py-3 text-lg font-bold text-white">
               <span className="inline-flex items-center gap-2"><Printer className="size-5" aria-hidden="true" /> طباعة البون</span>
             </button>
-            {order.status === 'READY' && (
+            {!['COLLECTED', 'CANCELLED'].includes(order.status) && (
               <button type="button" onClick={onRequestNotification}
                 className="min-h-12 flex-1 rounded-2xl border-2 border-blue px-4 py-3 font-bold">
-                <span className="inline-flex items-center gap-2"><Bell className="size-5" aria-hidden="true" /> تنبيه</span>
+                <span className="inline-flex items-center gap-2"><Bell className="size-5" aria-hidden="true" /> تفعيل تنبيه الجاهزية</span>
               </button>
             )}
           </div>
