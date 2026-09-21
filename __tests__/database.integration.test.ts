@@ -127,9 +127,9 @@ describe('PostgreSQL migrations and relational invariants', () => {
     expect(results.filter((result) => result.applied)).toHaveLength(1);
     const items = await db.menuItem.findMany({ include: { toppings: true } });
     expect(items.map(({ name, priceInAgorot }) => ({ name, priceInAgorot }))).toEqual(expect.arrayContaining([
-      { name: 'مقرونه', priceInAgorot: 500 },
+      { name: 'مقدوحه', priceInAgorot: 500 },
       { name: 'توست', priceInAgorot: 500 },
-      { name: 'مقرونه بيتسا', priceInAgorot: 500 },
+      { name: 'مقدوحه مع جبنه', priceInAgorot: 500 },
       { name: 'تروبيت', priceInAgorot: 100 },
     ]));
     expect(items).toHaveLength(4);
@@ -192,9 +192,9 @@ describe('PostgreSQL migrations and relational invariants', () => {
 
   it('rejects invalid quantities and negative snapshot prices', async () => {
     for (const quantity of [0, 21]) {
-      await expect(db.order.create({ data: { ...orderData(), items: { create: { itemName: 'مقرونه', unitPrice: 500, quantity } } } })).rejects.toThrow();
+      await expect(db.order.create({ data: { ...orderData(), items: { create: { itemName: 'مقدوحه', unitPrice: 500, quantity } } } })).rejects.toThrow();
     }
-    await expect(db.order.create({ data: { ...orderData(), items: { create: { itemName: 'مقرونه', unitPrice: -1, quantity: 1 } } } })).rejects.toThrow();
+    await expect(db.order.create({ data: { ...orderData(), items: { create: { itemName: 'مقدوحه', unitPrice: -1, quantity: 1 } } } })).rejects.toThrow();
   });
 
   it('rejects invalid estimates and malformed or reused credentials', async () => {

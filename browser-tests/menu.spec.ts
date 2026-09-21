@@ -45,12 +45,12 @@ test('uses explicit accessible selection and only the selected dish toppings', a
 });
 
 test('database prices and availability appear without source changes', async ({ page }) => {
-  await db.menuItem.update({ where: { name: 'مقرونه' }, data: { isAvailable: false } });
+  await db.menuItem.update({ where: { name: 'مقدوحه' }, data: { isAvailable: false } });
   await db.menuItem.update({ where: { name: 'توست' }, data: { priceInAgorot: 750 } });
   await db.topping.update({ where: { name: 'خردل' }, data: { isAvailable: false } });
   await db.topping.update({ where: { name: 'طحينة' }, data: { archivedAt: new Date() } });
   await page.goto('/');
-  await expect(page.getByRole('radio', { name: /^مقرونه،/ })).toBeDisabled();
+  await expect(page.getByRole('radio', { name: /^مقدوحه،/ })).toBeDisabled();
   await expect(page.getByRole('radio', { name: 'توست، ₪7.50' })).toBeEnabled();
   await page.getByRole('radio', { name: /^توست/ }).check();
   await expect(page.getByRole('checkbox', { name: /خردل/ })).toBeDisabled();

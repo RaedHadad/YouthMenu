@@ -2,9 +2,9 @@ import type { PrismaClient } from '@prisma/client';
 
 const seedKey = 'initial-menu-v1';
 const dishes = [
-  { name: 'مقرونه', priceInAgorot: 500, acceptsToppings: true },
+  { name: 'مقدوحه', priceInAgorot: 500, acceptsToppings: true },
   { name: 'توست', priceInAgorot: 500, acceptsToppings: true },
-  { name: 'مقرونه بيتسا', priceInAgorot: 500, acceptsToppings: true },
+  { name: 'مقدوحه مع جبنه', priceInAgorot: 500, acceptsToppings: true },
   { name: 'تروبيت', priceInAgorot: 100, acceptsToppings: false },
 ];
 

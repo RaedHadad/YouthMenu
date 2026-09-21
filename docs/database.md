@@ -27,7 +27,7 @@ npm run dev
 
 `docker compose --env-file .env.local stop` stops the service without deleting data.
 
-The first seed inserts مقرونه (₪5), توست (₪5), مقرونه بيتسا (₪5), تروبيت (₪1),
+The first seed inserts مقدوحه (₪5), توست (₪5), مقدوحه مع جبنه (₪5), تروبيت (₪1),
 and كاتشب / خردل / طحينة (free). Newly created food dishes receive all three sauces;
 تروبيت receives none. Existing records retain their assignments. A completed seed
 never resets renamed items, prices, availability, archived records or assignments.
