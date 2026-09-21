@@ -20,7 +20,7 @@ export default function CustomerMenu({ menuItems }: { menuItems: CustomerMenuIte
   const [quantity, setQuantity] = useState(1);
   const [customerName, setCustomerName] = useState('');
   const [statusMessage, setStatusMessage] = useState('');
-  const { order: currentOrder, pending, restoring, blocked, submitting: isSubmitting, error, live, submit } = useCustomerOrder();
+  const { order: currentOrder, pending, restoring, blocked, submitting: isSubmitting, error, live, submit, startNewOrder } = useCustomerOrder();
   const selectedItem = menuItems.find((item) => item.id === selectedItemId && item.isAvailable);
   const selectedToppings = selectedItem?.toppings.filter((topping) => topping.isAvailable && selectedToppingIds.includes(topping.id)) ?? [];
   const total = selectedItem ? (selectedItem.priceInAgorot + selectedToppings.reduce((sum, topping) => sum + topping.priceInAgorot, 0)) * quantity : 0;
@@ -56,7 +56,15 @@ export default function CustomerMenu({ menuItems }: { menuItems: CustomerMenuIte
     {error && <p role="status" className="no-print mx-auto max-w-xl p-4 text-center">{error}</p>}
     <p role="status" className="no-print pt-4 text-center text-sm">{live ? 'متصل مباشرة' : 'تُحدّث حالة طلبك تلقائياً'}</p>
     {alertMessage && <p role="status" className="no-print p-3 text-center">{alertMessage}</p>}
-    <OrderReceipt order={currentOrder} onRequestNotification={enableAlerts} />
+    <OrderReceipt order={currentOrder} onRequestNotification={enableAlerts} onNewOrder={() => {
+      if (!startNewOrder()) return;
+      setSelectedItemId('');
+      setSelectedToppingIds([]);
+      setQuantity(1);
+      setCustomerName('');
+      setStatusMessage('');
+      refreshMenu();
+    }} />
   </>;
   if (pending || blocked) return (
     <section className="mx-auto max-w-lg px-5 py-12 text-center">

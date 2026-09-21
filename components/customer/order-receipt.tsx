@@ -4,9 +4,10 @@ import { formatMoney } from '@/lib/money';
 import { getArabicStatusLabel } from '@/lib/order-utils';
 import type { CustomerOrder } from '@/lib/customer-types';
 
-export function OrderReceipt({ order, onRequestNotification }: {
+export function OrderReceipt({ order, onRequestNotification, onNewOrder }: {
   order: CustomerOrder;
   onRequestNotification: () => Promise<void>;
+  onNewOrder: () => void;
 }) {
   const details = [
     ['الاسم', order.customerName || 'ضيف'],
@@ -54,6 +55,12 @@ export function OrderReceipt({ order, onRequestNotification }: {
             <p className="rounded-full border-2 border-red px-4 py-2 font-bold">الدفع نقداً عند الاستلام</p>
           </figure>
           <div className="no-print mt-6 flex flex-col gap-3 sm:flex-row">
+            {['COLLECTED', 'CANCELLED'].includes(order.status) && (
+              <button type="button" onClick={onNewOrder}
+                className="min-h-12 flex-1 rounded-2xl bg-blue px-4 py-3 text-lg font-bold text-white">
+                طلب جديد / العودة للقائمة
+              </button>
+            )}
             <button type="button" onClick={() => window.print()}
               className="min-h-12 flex-1 rounded-2xl bg-blue px-4 py-3 text-lg font-bold text-white">
               <span className="inline-flex items-center gap-2"><Printer className="size-5" aria-hidden="true" /> طباعة البون</span>

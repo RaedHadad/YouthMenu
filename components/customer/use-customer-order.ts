@@ -125,5 +125,21 @@ export function useCustomerOrder() {
     }
   }
 
-  return { order, pending, restoring, blocked, submitting, error, live, submit };
+  function startNewOrder() {
+    if (!order || !['COLLECTED', 'CANCELLED'].includes(order.status) || inFlight.current) return false;
+    try {
+      localStorage.removeItem(PENDING_ORDER_STORAGE);
+      localStorage.removeItem(CURRENT_ORDER_STORAGE);
+    } catch {
+      setError('تعذر العودة للقائمة. يرجى السماح بالتخزين وإعادة المحاولة.');
+      return false;
+    }
+    setOrder(null);
+    setPending(null);
+    setError('');
+    setLive(false);
+    return true;
+  }
+
+  return { order, pending, restoring, blocked, submitting, error, live, submit, startNewOrder };
 }
