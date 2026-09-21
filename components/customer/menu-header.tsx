@@ -1,11 +1,10 @@
-import { ChefHat, Banknote, UtensilsCrossed } from 'lucide-react';
+import { ChefHat } from 'lucide-react';
 
 export function MenuHeader() {
   return (
     <header className="no-print">
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-5 py-5 sm:px-8">
-        <div className="flex items-center gap-2 text-xl font-black"><UtensilsCrossed className="size-6" aria-hidden="true" /> الأحداث<span className="hidden text-xs font-normal sm:inline">/ YouthMenu</span></div>
-        <span className="flex items-center gap-2 text-xs font-bold sm:text-sm"><Banknote className="size-5" aria-hidden="true" /> نقداً عند الاستلام</span>
+      <div className="mx-auto max-w-6xl px-5 py-7 text-center sm:px-8 sm:py-9">
+        <p className="text-5xl leading-tight font-black text-blue sm:text-7xl">الاحداث</p>
       </div>
       <div className="menu-hero border-y-2 border-blue bg-yellow">
         <div className="relative mx-auto flex max-w-6xl items-center justify-between gap-6 overflow-hidden px-5 py-10 sm:px-8 sm:py-14">
