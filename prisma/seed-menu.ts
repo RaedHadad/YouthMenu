@@ -5,7 +5,7 @@ const dishes = [
   { name: 'مقدوحه', priceInAgorot: 500, acceptsToppings: true },
   { name: 'توست', priceInAgorot: 500, acceptsToppings: true },
   { name: 'مقدوحه مع جبنه', priceInAgorot: 500, acceptsToppings: true },
-  { name: 'تروبيت', priceInAgorot: 100, acceptsToppings: false },
+  { name: 'تروبيت', priceInAgorot: 100, category: 'DRINK' as const, acceptsToppings: false },
 ];
 
 /** Seed once, atomically, without resetting existing prices or menu choices. */

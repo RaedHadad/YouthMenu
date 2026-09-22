@@ -7,7 +7,7 @@ export async function getCustomerMenu(db: Pick<PrismaClient, 'menuItem'>): Promi
     where: { archivedAt: null },
     orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
     select: {
-      id: true, name: true, priceInAgorot: true, isAvailable: true,
+      id: true, name: true, priceInAgorot: true, isAvailable: true, category: true,
       toppings: {
         where: { topping: { archivedAt: null } },
         orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],

@@ -2,8 +2,9 @@ import { Banknote, Minus, Plus, ArrowLeft } from 'lucide-react';
 import type { CustomerMenuItem, CustomerTopping } from '@/lib/customer-types';
 import { formatMoney } from '@/lib/money';
 
-export function OrderForm({ item, toppings, quantity, onQuantityChange, name, onNameChange, total, submitting, message, onSubmit }: {
+export function OrderForm({ item, drinks = [], toppings, quantity, onQuantityChange, name, onNameChange, total, submitting, message, onSubmit }: {
   item?: CustomerMenuItem;
+  drinks?: Array<CustomerMenuItem & { quantity: number }>;
   toppings: CustomerTopping[];
   quantity: number;
   onQuantityChange: (quantity: number) => void;
@@ -21,6 +22,7 @@ export function OrderForm({ item, toppings, quantity, onQuantityChange, name, on
         <div className="mb-6 border-y-2 border-dashed border-blue/20 py-5">
           <p className="break-words text-xl font-black">{item?.name ?? 'ماذا تشتهي اليوم؟'}</p>
           <p className="mt-2 text-sm leading-7">{item ? toppings.map((topping) => topping.name).join('، ') || 'بدون إضافات' : 'اختر صنفاً من القائمة لتبدأ طلبك.'}</p>
+          {item && drinks.map((drink) => <p key={drink.id} className="mt-2 text-sm font-bold">{drink.quantity} × {drink.name} — <bdi>{formatMoney(drink.priceInAgorot * drink.quantity)}</bdi></p>)}
         </div>
         <fieldset disabled={!item?.isAvailable || submitting} className="space-y-5 disabled:opacity-60">
           <div>

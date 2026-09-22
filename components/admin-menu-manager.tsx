@@ -2,7 +2,7 @@
 import { useRef, useState } from 'react';
 import { formatMoney } from '@/lib/money';
 
-type Entry = { id: string; name: string; priceInAgorot: number; isAvailable: boolean; archivedAt: string | null; toppingIds?: string[] };
+type Entry = { category?: 'FOOD' | 'DRINK'; id: string; name: string; priceInAgorot: number; isAvailable: boolean; archivedAt: string | null; toppingIds?: string[] };
 type Menu = { menuItems: Entry[]; toppings: Entry[] };
 export default function AdminMenuManager(initial: Menu) {
   const [data, setData] = useState(initial);
@@ -36,6 +36,7 @@ export default function AdminMenuManager(initial: Menu) {
         <button onClick={() => setEditing({ entity })} className="mb-4 min-h-11 rounded-xl bg-blue px-4 text-white">{entity === 'item' ? 'إضافة صنف' : 'إضافة جديدة'}</button>
         <div className="space-y-3">{(entity === 'item' ? data.menuItems : data.toppings).map((entry) => <article key={entry.id} aria-label={entry.name} className="rounded-xl border border-blue/20 p-4">
           <h3 className="break-words font-bold">{entry.name} — <bdi>{formatMoney(entry.priceInAgorot)}</bdi></h3>
+          {entity === 'item' && <p className="mt-2 text-sm font-bold">{entry.category === 'DRINK' ? 'مشروب' : 'طعام'}</p>}
           <p className="my-2 text-sm">{entry.archivedAt ? 'مؤرشف' : entry.isAvailable ? 'متوفر' : 'غير متوفر'}</p>
           <div className="flex flex-wrap gap-2">
             <button onClick={() => setEditing({ entity, entry })} className="min-h-11 rounded-lg bg-yellow px-3">تعديل</button>
@@ -53,6 +54,7 @@ function Editor({ entity, entry, toppings, busy, onCancel, onSave }: {
   entity: 'item' | 'topping'; entry?: Entry; toppings: Entry[]; busy: boolean;
   onCancel: () => void; onSave: (body: object, create: boolean) => Promise<void>;
 }) {
+  const [category, setCategory] = useState<'FOOD' | 'DRINK'>(entry?.category ?? 'FOOD');
   const [name, setName] = useState(entry?.name ?? '');
   const [price, setPrice] = useState(entry ? (entry.priceInAgorot / 100).toFixed(2) : '0');
   const [available, setAvailable] = useState(entry?.isAvailable ?? true);
@@ -62,14 +64,15 @@ function Editor({ entity, entry, toppings, busy, onCancel, onSave }: {
     if (!/^\d+(\.\d{1,2})?$/.test(price)) return;
     const [whole, fraction = ''] = price.split('.');
     void onSave({ entity, ...(entry ? { id: entry.id } : {}), name, priceInAgorot: Number(whole) * 100 + Number(fraction.padEnd(2, '0')),
-      isAvailable: available, ...(entity === 'item' ? { toppingIds: ids } : {}) }, !entry);
+      isAvailable: available, ...(entity === 'item' ? { category, toppingIds: category === 'FOOD' ? ids : [] } : {}) }, !entry);
   }} className="rounded-3xl border-2 border-blue bg-cream p-5">
     <fieldset disabled={busy} className="space-y-4">
       <legend className="mb-3 text-xl font-bold">{entry ? 'تعديل العنصر' : 'عنصر جديد'}</legend>
+      {entity === 'item' && <label className="block">نوع الصنف<select value={category} onChange={(event) => setCategory(event.target.value as 'FOOD' | 'DRINK')} className="mt-1 block min-h-11 w-full rounded-lg border bg-white p-3"><option value="FOOD">طعام</option><option value="DRINK">مشروب</option></select></label>}
       <label className="block">الاسم<input required minLength={2} maxLength={80} value={name} onChange={(event) => setName(event.target.value)} className="mt-1 block min-h-11 w-full rounded-lg border bg-white p-3" /></label>
       <label className="block">السعر بالشيكل<input required inputMode="decimal" pattern="[0-9]+(\.[0-9]{1,2})?" value={price} onChange={(event) => setPrice(event.target.value)} className="mt-1 block min-h-11 w-full rounded-lg border bg-white p-3" /></label>
       <label className="flex gap-3"><input type="checkbox" checked={available} onChange={(event) => setAvailable(event.target.checked)} />متوفر</label>
-      {entity === 'item' && <fieldset className="flex flex-wrap gap-4"><legend className="mb-2 font-bold">الإضافات المسموحة</legend>
+      {entity === 'item' && category === 'FOOD' && <fieldset className="flex flex-wrap gap-4"><legend className="mb-2 font-bold">الإضافات المسموحة</legend>
         {toppings.filter((topping) => !topping.archivedAt).map((topping) => <label className="flex min-h-11 items-center gap-2" key={topping.id}>
           <input type="checkbox" checked={ids.includes(topping.id)} onChange={() => setIds((old) => old.includes(topping.id) ? old.filter((id) => id !== topping.id) : [...old, topping.id])} />{topping.name}
         </label>)}

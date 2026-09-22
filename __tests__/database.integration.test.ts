@@ -117,6 +117,7 @@ describe('PostgreSQL migrations and relational invariants', () => {
       '202609210001_secure_order_creation',
       '202609210002_admin_login_limits',
       '202609210003_realtime_outbox',
+      '202609220001_menu_drinks',
     ]);
     runPrisma(url, ['migrate', 'diff', '--from-schema-datasource', 'prisma/schema.prisma',
       '--to-schema-datamodel', 'prisma/schema.prisma', '--exit-code']);
@@ -258,7 +259,7 @@ describe('PostgreSQL migrations and relational invariants', () => {
     expect(menu.find((item) => item.id === hidden.id)).toBeUndefined();
     const result = menu.find((item) => item.id === dish.id)!;
     expect(result).toMatchObject({ name: 'صنف للعرض', priceInAgorot: 750, isAvailable: false });
-    expect(Object.keys(result).sort()).toEqual(['id', 'isAvailable', 'name', 'priceInAgorot', 'toppings']);
+    expect(Object.keys(result).sort()).toEqual(['category', 'id', 'isAvailable', 'name', 'priceInAgorot', 'toppings']);
     expect(result.toppings.map((topping) => topping.id).sort()).toEqual([available.id, unavailable.id].sort());
     expect(Object.keys(result.toppings[0]).sort()).toEqual(['id', 'isAvailable', 'name', 'priceInAgorot']);
   });
@@ -685,6 +686,36 @@ describe('PostgreSQL migrations and relational invariants', () => {
     expect(second.orders).toHaveLength(2);
     expect(second.orders.some((order) => first.orders.some((old) => old.id === order.id))).toBe(false);
     expect((await orderHistory(db, { q: 'اختبار التصفح', date: '2000-01-01' })).total).toBe(0);
+  });
+
+  it('prices drink lines on the server, snapshots them, and binds replay to drink quantities', async () => {
+    const { input } = await orderFixture(db);
+    const drink = await db.menuItem.create({ data: { name: `عصير ${tokenHash().slice(0, 8)}`, priceInAgorot: 150, category: 'DRINK' } });
+    const key = tokenHash();
+    const body = { ...input, drinks: [{ menuItemId: drink.id, quantity: 2 }] };
+    const response = await handleCreateOrder(orderRequest(body, key), db);
+    expect(response.status).toBe(201);
+    const created = await response.json();
+    expect(created.totalAmount).toBe(3825);
+    expect(created.items).toEqual(expect.arrayContaining([expect.objectContaining({ itemName: drink.name, quantity: 2, unitPrice: 150 })]));
+    await db.menuItem.update({ where: { id: drink.id }, data: { name: `جديد ${tokenHash().slice(0, 8)}`, priceInAgorot: 900, isAvailable: false } });
+    expect(await (await handleCreateOrder(orderRequest(body, key), db)).json()).toEqual(created);
+    expect((await handleCreateOrder(orderRequest({ ...body, drinks: [{ menuItemId: drink.id, quantity: 3 }] }, key), db)).status).toBe(409);
+    expect((await handleCreateOrder(orderRequest(body), db)).status).toBe(400);
+    expect((await handleCreateOrder(orderRequest({ ...body, drinks: [{ menuItemId: input.menuItemId, quantity: 1 }] }), db)).status).toBe(400);
+    expect((await handleCreateOrder(orderRequest({ ...body, drinks: [body.drinks[0], body.drinks[0]] }), db)).status).toBe(400);
+    expect((await handleCreateOrder(orderRequest({ ...body, drinks: [{ ...body.drinks[0], quantity: 0 }] }), db)).status).toBe(400);
+  });
+
+  it('creates food and drinks in admin and clears food toppings when converting to a drink', async () => {
+    const name = `مشروب إداري ${tokenHash().slice(0, 8)}`;
+    const drink = await mutateMenu(db, { entity: 'item', name, priceInAgorot: 200, category: 'DRINK' }, true);
+    expect(await db.menuItem.findUnique({ where: { id: drink!.id } })).toMatchObject({ category: 'DRINK', priceInAgorot: 200 });
+    const { dish, topping } = await orderFixture(db);
+    await mutateMenu(db, { entity: 'item', id: dish.id, category: 'DRINK' }, false);
+    expect(await db.menuItemTopping.count({ where: { menuItemId: dish.id } })).toBe(0);
+    await expect(mutateMenu(db, { entity: 'item', id: dish.id, toppingIds: [topping.id] }, false)).rejects.toThrow();
+    await expect(mutateMenu(db, { entity: 'topping', id: topping.id, category: 'DRINK' }, false)).rejects.toThrow();
   });
 
 });

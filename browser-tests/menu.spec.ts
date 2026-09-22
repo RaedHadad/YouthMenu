@@ -30,16 +30,16 @@ test('uses explicit accessible selection and only the selected dish toppings', a
   await page.goto('/');
   await expect(page.locator('html')).toHaveAttribute('lang', 'ar');
   await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
-  await expect(page.getByRole('radio')).toHaveCount(4);
+  await expect(page.getByRole('radio')).toHaveCount(3);
   await expect(page.getByRole('button', { name: 'أرسل الطلب' })).toBeDisabled();
   await expect(page.getByRole('checkbox')).toHaveCount(0);
   await page.getByRole('radio', { name: /^توست/ }).check();
   await expect(page.getByRole('checkbox')).toHaveCount(3);
   await page.getByRole('checkbox', { name: /كاتشب/ }).check();
   await expect(page.getByRole('checkbox', { name: /كاتشب/ })).toBeChecked();
-  await page.getByRole('radio', { name: /^تروبيت/ }).check();
-  await expect(page.getByRole('checkbox')).toHaveCount(0);
-  await expect(page.getByText('هذا الصنف يأتي بدون إضافات.')).toBeVisible();
+  await expect(page.getByRole('radio', { name: /^تروبيت/ })).toHaveCount(0);
+  await page.getByRole('spinbutton', { name: 'كمية تروبيت' }).fill('1');
+  await page.getByRole('radio', { name: /^مقدوحه،/ }).check();
   await page.getByRole('radio', { name: /^توست/ }).check();
   await expect(page.getByRole('checkbox', { name: /كاتشب/ })).not.toBeChecked();
 });
@@ -90,7 +90,7 @@ test('submits identifiers and quantity with no browser-supplied price', async ({
   await page.getByRole('textbox', { name: 'الاسم', exact: true }).fill('أحمد');
   await page.getByRole('button', { name: 'أرسل الطلب' }).click();
   await expect(page.getByRole('alert').filter({ hasText: 'رسالة اختبار' })).toBeVisible();
-  expect(body).toEqual({ menuItemId: item.id, selectedToppingIds: [topping.id], quantity: 2, customerName: 'أحمد' });
+  expect(body).toEqual({ drinks: [], menuItemId: item.id, selectedToppingIds: [topping.id], quantity: 2, customerName: 'أحمد' });
 });
 
 test('supports keyboard dish and topping selection', async ({ page }) => {
@@ -215,7 +215,7 @@ test('receipt shows server snapshots and a decodable pickup credential after ref
   await page.reload();
   await expect(page.getByText('طلبك قيد التحضير...', { exact: true })).toBeVisible();
   await expect(page.getByText('الوقت المقدر: ~15 دقيقة')).toBeVisible();
-  await expect(page.getByText('توست', { exact: true })).toBeVisible();
+  await expect(page.getByText('2 × توست', { exact: true })).toBeVisible();
   await expect(page.getByText('₪12.50', { exact: true })).toBeVisible();
   expect(await decodeReceiptQr(page)).toBe(saved.pickupToken);
   await expect(page.getByRole('article')).not.toContainText(saved.customerAccessToken);
@@ -462,4 +462,41 @@ test('scanner previews cash pickup, confirms once and retains searchable history
   await expect(page.getByText(/مدفوع نقداً/)).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath('history-mobile.png'), fullPage: true });
+});
+
+
+test('admin adds food and drinks, customer orders both on one receipt', async ({ page, context }) => {
+  await db.admin.create({ data: { email: 'drinks@example.com', passwordHash: await hash('Test-only-password-2026!', 12) } });
+  await context.request.post('/api/admin/login', { headers: { Origin: 'http://127.0.0.1:3107' }, data: { email: 'drinks@example.com', password: 'Test-only-password-2026!' } });
+  await page.goto('/admin/menu');
+  for (const entry of [{ name: 'وجبة جديدة', category: 'FOOD', price: '6' }, { name: 'عصير جديد', category: 'DRINK', price: '2' }]) {
+    await page.getByRole('button', { name: 'إضافة صنف', exact: true }).click();
+    await page.getByLabel('نوع الصنف').selectOption(entry.category);
+    await page.getByLabel('الاسم', { exact: true }).fill(entry.name);
+    await page.getByLabel('السعر بالشيكل').fill(entry.price);
+    await page.getByRole('button', { name: 'حفظ', exact: true }).click();
+    await expect(page.getByRole('article', { name: entry.name })).toBeVisible();
+  }
+  await page.goto('/');
+  await expect(page.getByRole('radio', { name: /^تروبيت/ })).toHaveCount(0);
+  await page.getByRole('radio', { name: /^وجبة جديدة/ }).check();
+  await page.getByRole('spinbutton', { name: 'كمية عصير جديد' }).fill('2');
+  await page.getByRole('spinbutton', { name: 'كمية تروبيت' }).fill('1');
+  await expect(page.getByRole('status', { name: 'الإجمالي', exact: true })).toHaveText('₪11');
+  await page.getByRole('textbox', { name: 'الاسم', exact: true }).fill('طلب مع مشروبات');
+  await page.getByRole('button', { name: 'أرسل الطلب' }).click();
+  await expect(page.getByRole('heading', { name: /بون الطلب/ })).toBeVisible();
+  await expect(page.getByText('2 × عصير جديد', { exact: true })).toBeVisible();
+  await expect(page.getByText('1 × تروبيت', { exact: true })).toBeVisible();
+  await expect(page.getByText('₪11', { exact: true })).toBeVisible();
+  await page.reload();
+  await expect(page.getByText('2 × عصير جديد', { exact: true })).toBeVisible();
+  const order = await db.order.findFirstOrThrow({ where: { customerName: 'طلب مع مشروبات' }, include: { items: true } });
+  expect(order.items).toHaveLength(3);
+  await page.goto('/admin');
+  await expect(page.getByText(/2 × عصير جديد/)).toBeVisible();
+  await page.goto('/admin/orders');
+  await page.getByLabel('الاسم أو رقم الطلب').fill('طلب مع مشروبات');
+  await page.getByRole('button', { name: 'بحث', exact: true }).click();
+  await expect(page.getByText(/2 × عصير جديد/)).toBeVisible();
 });

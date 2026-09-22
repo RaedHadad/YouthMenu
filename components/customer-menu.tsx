@@ -10,6 +10,7 @@ import { ToppingPicker } from '@/components/customer/topping-picker';
 import { OrderForm } from '@/components/customer/order-form';
 import { useReadyAlert } from '@/components/customer/use-ready-alert';
 import { OrderReceipt } from '@/components/customer/order-receipt';
+import { DrinkPicker } from '@/components/customer/drink-picker';
 import { MenuHeader } from '@/components/customer/menu-header';
 
 export default function CustomerMenu({ menuItems }: { menuItems: CustomerMenuItem[] }) {
@@ -17,13 +18,17 @@ export default function CustomerMenu({ menuItems }: { menuItems: CustomerMenuIte
   const [refreshing, startRefresh] = useTransition();
   const [selectedItemId, setSelectedItemId] = useState('');
   const [selectedToppingIds, setSelectedToppingIds] = useState<string[]>([]);
+  const [drinkQuantities, setDrinkQuantities] = useState<Record<string, number>>({});
   const [quantity, setQuantity] = useState(1);
   const [customerName, setCustomerName] = useState('');
   const [statusMessage, setStatusMessage] = useState('');
   const { order: currentOrder, pending, restoring, blocked, submitting: isSubmitting, error, live, submit, startNewOrder } = useCustomerOrder();
-  const selectedItem = menuItems.find((item) => item.id === selectedItemId && item.isAvailable);
+  const foodItems = menuItems.filter((item) => item.category !== 'DRINK');
+  const drinkItems = menuItems.filter((item) => item.category === 'DRINK');
+  const selectedDrinks = drinkItems.filter((item) => item.isAvailable && drinkQuantities[item.id] > 0).map((item) => ({ ...item, quantity: drinkQuantities[item.id] }));
+  const selectedItem = foodItems.find((item) => item.id === selectedItemId && item.isAvailable);
   const selectedToppings = selectedItem?.toppings.filter((topping) => topping.isAvailable && selectedToppingIds.includes(topping.id)) ?? [];
-  const total = selectedItem ? (selectedItem.priceInAgorot + selectedToppings.reduce((sum, topping) => sum + topping.priceInAgorot, 0)) * quantity : 0;
+  const total = selectedItem ? (selectedItem.priceInAgorot + selectedToppings.reduce((sum, topping) => sum + topping.priceInAgorot, 0)) * quantity + selectedDrinks.reduce((sum, drink) => sum + drink.priceInAgorot * drink.quantity, 0) : 0;
   const refreshMenu = () => startRefresh(() => router.refresh());
 
   const toggleTopping = (id: string) => {
@@ -46,7 +51,7 @@ export default function CustomerMenu({ menuItems }: { menuItems: CustomerMenuIte
     }
 
     setStatusMessage('');
-    await submit({ menuItemId: selectedItem.id, selectedToppingIds: selectedToppings.map((topping) => topping.id), quantity, customerName: customerName.trim() });
+    await submit({ drinks: selectedDrinks.map((drink) => ({ menuItemId: drink.id, quantity: drink.quantity })), menuItemId: selectedItem.id, selectedToppingIds: selectedToppings.map((topping) => topping.id), quantity, customerName: customerName.trim() });
   };
 
   const { enableAlerts, alertMessage } = useReadyAlert(currentOrder);
@@ -60,6 +65,7 @@ export default function CustomerMenu({ menuItems }: { menuItems: CustomerMenuIte
       if (!startNewOrder()) return;
       setSelectedItemId('');
       setSelectedToppingIds([]);
+      setDrinkQuantities({});
       setQuantity(1);
       setCustomerName('');
       setStatusMessage('');
@@ -97,15 +103,16 @@ export default function CustomerMenu({ menuItems }: { menuItems: CustomerMenuIte
           </div>
         ) : (
           <>
-            {!menuItems.some((item) => item.isAvailable) && <p role="status" className="mb-6 rounded-2xl border-2 border-blue bg-yellow p-4 font-bold">الأصناف غير متوفرة حالياً. ننتظرك قريباً!</p>}
+            {!foodItems.some((item) => item.isAvailable) && <p role="status" className="mb-6 rounded-2xl border-2 border-blue bg-yellow p-4 font-bold">الأصناف غير متوفرة حالياً. ننتظرك قريباً!</p>}
             {selectedItemId && !selectedItem && <p role="status" className="mb-6 rounded-2xl bg-yellow p-4 font-bold">الصنف الذي اخترته لم يعد متوفراً. اختر صنفاً آخر.</p>}
             <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
               <div className="min-w-0 space-y-8">
-                <DishList items={menuItems} selectedId={selectedItem?.id} disabled={isSubmitting}
+                <DishList items={foodItems} selectedId={selectedItem?.id} disabled={isSubmitting}
                   onSelect={(id) => { setSelectedItemId(id); setSelectedToppingIds([]); setStatusMessage(''); }} />
+                <DrinkPicker items={drinkItems} quantities={drinkQuantities} disabled={isSubmitting || !selectedItem} onChange={(id, amount) => setDrinkQuantities((previous) => ({ ...previous, [id]: amount }))} />
                 <ToppingPicker item={selectedItem} selectedIds={selectedToppings.map((topping) => topping.id)} onToggle={toggleTopping} disabled={isSubmitting} />
               </div>
-              <OrderForm item={selectedItem} toppings={selectedToppings} quantity={quantity} onQuantityChange={setQuantity}
+              <OrderForm drinks={selectedDrinks} item={selectedItem} toppings={selectedToppings} quantity={quantity} onQuantityChange={setQuantity}
                 name={customerName} onNameChange={setCustomerName} total={total} submitting={isSubmitting}
                 message={statusMessage || error} onSubmit={handleSubmit} />
             </div>

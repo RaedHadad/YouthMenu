@@ -15,6 +15,7 @@ export async function createPricedOrder(db: PrismaClient, input: CreateOrderInpu
     selectedToppingIds: [...input.selectedToppingIds].sort(),
     quantity: input.quantity,
     customerName: input.customerName,
+    ...(input.drinks?.length ? { drinks: [...input.drinks].sort((a, b) => a.menuItemId.localeCompare(b.menuItemId)) } : {}),
   })).digest('hex');
 
   function responseFor(order: OrderWithItems) {
@@ -36,7 +37,7 @@ export async function createPricedOrder(db: PrismaClient, input: CreateOrderInpu
       const order = await db.$transaction(async (tx) => {
         const existing = await tx.order.findUnique({ where: { creationKeyHash }, include: orderWithItems });
         if (existing) return existing;
-        const { item, toppings, totalAmount } = await quoteOrder(tx, input);
+        const { item, toppings, drinks, totalAmount } = await quoteOrder(tx, input);
         const created = await tx.order.create({
           data: {
             customerName: input.customerName,
@@ -48,7 +49,7 @@ export async function createPricedOrder(db: PrismaClient, input: CreateOrderInpu
             encryptedCredentials: sealCredentials(credentials, creationKeyHash),
             pickupTokenHash: hashOrderToken(credentials.pickupToken, 'pickup'),
             customerAccessTokenHash: hashOrderToken(credentials.customerAccessToken, 'access'),
-            items: { create: {
+            items: { create: [{
               menuItemId: item.id,
               itemName: item.name,
               unitPrice: item.priceInAgorot,
@@ -58,7 +59,7 @@ export async function createPricedOrder(db: PrismaClient, input: CreateOrderInpu
                 toppingName: topping.name,
                 toppingPrice: topping.priceInAgorot,
               })) },
-            } },
+            }, ...drinks.map((drink) => ({ menuItemId: drink.id, itemName: drink.name, unitPrice: drink.priceInAgorot, quantity: drink.quantity }))] },
           },
           include: orderWithItems,
         });

@@ -12,6 +12,8 @@ const orderIdSchema = z.string({ error: 'معرّف الصنف أو الإضاف
 
 export const createOrderSchema = z.strictObject({
   menuItemId: orderIdSchema,
+  drinks: z.array(z.strictObject({ menuItemId: orderIdSchema, quantity: z.number().int().min(1).max(MAX_ORDER_QUANTITY) }))
+    .max(20).refine((drinks) => new Set(drinks.map((drink) => drink.menuItemId)).size === drinks.length, 'لا يمكن تكرار المشروب').optional(),
   selectedToppingIds: z.array(orderIdSchema, { error: 'الإضافات غير صالحة' })
     .max(MAX_ORDER_TOPPINGS, 'عدد الإضافات أكبر من المسموح')
     .refine((ids) => new Set(ids).size === ids.length, 'لا يمكن تكرار الإضافة')

@@ -10,6 +10,7 @@ export type CustomerMenuItem = {
   name: string;
   priceInAgorot: number;
   isAvailable: boolean;
+  category?: 'FOOD' | 'DRINK';
   toppings: CustomerTopping[];
 };
 
@@ -27,4 +28,5 @@ export type CustomerOrder = {
   quantity?: number;
   toppings?: string;
   estimatedMinutes?: number | null;
+  items?: Array<{ itemName: string; quantity: number; unitPrice: number; toppings: string }>;
 };

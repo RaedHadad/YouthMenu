@@ -11,9 +11,7 @@ export function OrderReceipt({ order, onRequestNotification, onNewOrder }: {
 }) {
   const details = [
     ['الاسم', order.customerName || 'ضيف'],
-    ['الصنف', order.itemName || '—'],
-    ['الكمية', order.quantity ?? '—'],
-    ['الإضافات', order.toppings || 'بدون إضافات'],
+    ...(!order.items?.length ? [['الصنف', order.itemName || '—'], ['الكمية', order.quantity ?? '—'], ['الإضافات', order.toppings || 'بدون إضافات']] : []),
   ];
 
   return (
@@ -32,6 +30,10 @@ export function OrderReceipt({ order, onRequestNotification, onNewOrder }: {
                 <dd className="min-w-0 font-bold [overflow-wrap:anywhere]">{value}</dd>
               </div>
             ))}
+            {order.items?.map((item, index) => <div key={index} className="border-t border-dashed border-blue/20 pt-3 [overflow-wrap:anywhere]">
+              <dt className="font-bold">{item.quantity} × {item.itemName}</dt>
+              <dd className="mt-1 text-sm"><span>{item.toppings || 'لا يوجد'}</span> — <bdi>{formatMoney(item.unitPrice)}</bdi> للصنف الواحد</dd>
+            </div>)}
             <div className="flex items-center justify-between gap-3 border-y-2 border-dashed border-blue/40 py-4">
               <dt className="font-bold">السعر الإجمالي</dt>
               <dd className="text-3xl font-black"><bdi dir="ltr">{formatMoney(order.totalAmount)}</bdi></dd>

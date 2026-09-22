@@ -119,3 +119,14 @@ direct migration connection. Use provider-required TLS settings. Configure these
 as server-only Vercel environment variables. Provision separate databases for
 preview and production. Run migrations once in a controlled release step, then
 build and deploy. Do not invoke migrations or seed from a request handler.
+
+Menu items have a `FOOD` or `DRINK` category (food by default). Migration
+`202609220001_menu_drinks` categorizes the existing تروبيت item as a drink without
+changing its price or historical orders. Admins choose the category when adding
+or editing an item. Drinks do not have food toppings.
+
+Customers can add optional drinks, each with its own quantity, alongside the
+selected food. Each drink is stored as a separate order item with a price/name
+snapshot. The server validates drink category and availability, computes the
+combined total, and includes drink selections in the idempotency fingerprint.
+Existing food-only pending requests retain their original replay fingerprint.

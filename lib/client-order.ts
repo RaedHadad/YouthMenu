@@ -18,6 +18,7 @@ export const customerStatusSchema = z.object({
   totalAmount: z.number().int().nonnegative(),
   visibleCode: z.string(),
   estimatedMinutes: z.number().int().positive().nullable(),
+  items: z.array(z.object({ itemName: z.string(), quantity: z.number().int().positive(), unitPrice: z.number().int().nonnegative(), toppings: z.string() })).optional(),
   itemName: z.string(),
   quantity: z.number().int().positive(),
   toppings: z.string(),

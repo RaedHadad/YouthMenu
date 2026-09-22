@@ -15,6 +15,7 @@ export function customerOrderStatus(order: OrderWithItems) {
     totalAmount: order.totalAmount,
     visibleCode: order.visibleCode,
     estimatedMinutes: order.estimatedMinutes,
+    items: order.items.map((item) => ({ itemName: item.itemName, quantity: item.quantity, unitPrice: item.unitPrice, toppings: item.toppings.map((topping) => topping.toppingName).join('، ') })),
     itemName: order.items[0]?.itemName ?? '',
     quantity: order.items[0]?.quantity ?? 0,
     toppings: order.items.flatMap((item) => item.toppings.map((topping) => topping.toppingName)).join('، ') || 'لا يوجد',
