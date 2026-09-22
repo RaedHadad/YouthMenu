@@ -38,7 +38,7 @@ test('uses explicit accessible selection and only the selected dish toppings', a
   await page.getByRole('checkbox', { name: /كاتشب/ }).check();
   await expect(page.getByRole('checkbox', { name: /كاتشب/ })).toBeChecked();
   await expect(page.getByRole('checkbox', { name: /^تروبيت/ })).toHaveCount(0);
-  await page.getByRole('spinbutton', { name: 'كمية تروبيت' }).fill('1');
+  await page.getByRole('button', { name: 'زيادة كمية تروبيت' }).click();
   await page.getByRole('checkbox', { name: /^مقدوحه،/ }).check();
   await expect(page.getByRole('article', { name: 'توست', exact: true }).getByRole('checkbox', { name: /كاتشب/ })).toBeChecked();
   await expect(page.getByRole('article', { name: 'مقدوحه', exact: true }).getByRole('checkbox', { name: /كاتشب/ })).not.toBeChecked();
@@ -480,8 +480,9 @@ test('admin adds food and drinks, customer orders both on one receipt', async ({
   await page.goto('/');
   await expect(page.getByRole('checkbox', { name: /^تروبيت/ })).toHaveCount(0);
   await page.getByRole('checkbox', { name: /^وجبة جديدة/ }).check();
-  await page.getByRole('spinbutton', { name: 'كمية عصير جديد' }).fill('2');
-  await page.getByRole('spinbutton', { name: 'كمية تروبيت' }).fill('1');
+  await page.getByRole('button', { name: 'زيادة كمية عصير جديد' }).click();
+  await page.getByRole('button', { name: 'زيادة كمية عصير جديد' }).click();
+  await page.getByRole('button', { name: 'زيادة كمية تروبيت' }).click();
   await expect(page.getByRole('status', { name: 'الإجمالي', exact: true })).toHaveText('₪11');
   await page.getByRole('textbox', { name: 'الاسم', exact: true }).fill('طلب مع مشروبات');
   await page.getByRole('button', { name: 'أرسل الطلب' }).click();
@@ -513,7 +514,8 @@ test('selects multiple foods with independent quantities and toppings beside the
   await toast.getByRole('checkbox', { name: /كاتشب/ }).check();
   await hotdog.getByRole('checkbox', { name: /^مقدوحه،/ }).check();
   await expect(hotdog.getByRole('checkbox', { name: /كاتشب/ })).not.toBeChecked();
-  await page.getByRole('spinbutton', { name: 'كمية تروبيت' }).fill('2');
+  await page.getByRole('button', { name: 'زيادة كمية تروبيت' }).click();
+  await page.getByRole('button', { name: 'زيادة كمية تروبيت' }).click();
   await expect(page.getByRole('status', { name: 'الإجمالي', exact: true })).toHaveText('₪19');
   await hotdog.getByRole('checkbox', { name: /^مقدوحه،/ }).uncheck();
   await expect(page.getByRole('status', { name: 'الإجمالي', exact: true })).toHaveText('₪14');
