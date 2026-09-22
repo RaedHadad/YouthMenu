@@ -130,3 +130,9 @@ selected food. Each drink is stored as a separate order item with a price/name
 snapshot. The server validates drink category and availability, computes the
 combined total, and includes drink selections in the idempotency fingerprint.
 Existing food-only pending requests retain their original replay fingerprint.
+
+Customers can select up to 20 different foods, each with its own quantity and
+allowed toppings. Quantity controls appear beneath each selected food card.
+Additional foods use the optional `additionalFoods` request field, keeping
+existing single-food requests and pending-order recovery compatible. All food
+and drink lines are priced server-side and saved on the same order/receipt.

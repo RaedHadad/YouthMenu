@@ -718,4 +718,22 @@ describe('PostgreSQL migrations and relational invariants', () => {
     await expect(mutateMenu(db, { entity: 'topping', id: topping.id, category: 'DRINK' }, false)).rejects.toThrow();
   });
 
+  it('prices multiple foods independently, validates their toppings and binds replay to each line', async () => {
+    const first = await orderFixture(db);
+    const second = await orderFixture(db);
+    const key = tokenHash();
+    const body = { ...first.input, additionalFoods: [{ menuItemId: second.dish.id, quantity: 2, selectedToppingIds: [second.topping.id] }] };
+    const response = await handleCreateOrder(orderRequest(body, key), db);
+    expect(response.status).toBe(201);
+    const created = await response.json();
+    expect(created.totalAmount).toBe(5875);
+    expect(created.items).toHaveLength(2);
+    expect((await handleCreateOrder(orderRequest({ ...body, additionalFoods: [{ ...body.additionalFoods[0], quantity: 1 }] }, key), db)).status).toBe(409);
+    expect((await handleCreateOrder(orderRequest({ ...body, additionalFoods: [{ ...body.additionalFoods[0], selectedToppingIds: [first.topping.id] }] }), db)).status).toBe(400);
+    expect((await handleCreateOrder(orderRequest({ ...body, additionalFoods: [{ ...body.additionalFoods[0], menuItemId: first.dish.id }] }), db)).status).toBe(400);
+    await db.menuItem.update({ where: { id: second.dish.id }, data: { isAvailable: false } });
+    expect((await handleCreateOrder(orderRequest(body), db)).status).toBe(400);
+    expect(await (await handleCreateOrder(orderRequest(body, key), db)).json()).toEqual(created);
+  });
+
 });

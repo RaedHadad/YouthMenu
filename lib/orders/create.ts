@@ -15,6 +15,7 @@ export async function createPricedOrder(db: PrismaClient, input: CreateOrderInpu
     selectedToppingIds: [...input.selectedToppingIds].sort(),
     quantity: input.quantity,
     customerName: input.customerName,
+    ...(input.additionalFoods?.length ? { additionalFoods: [...input.additionalFoods].map((food) => ({ menuItemId: food.menuItemId, quantity: food.quantity, selectedToppingIds: [...food.selectedToppingIds].sort() })).sort((a, b) => a.menuItemId.localeCompare(b.menuItemId)) } : {}),
     ...(input.drinks?.length ? { drinks: [...input.drinks].sort((a, b) => a.menuItemId.localeCompare(b.menuItemId)) } : {}),
   })).digest('hex');
 
@@ -37,7 +38,7 @@ export async function createPricedOrder(db: PrismaClient, input: CreateOrderInpu
       const order = await db.$transaction(async (tx) => {
         const existing = await tx.order.findUnique({ where: { creationKeyHash }, include: orderWithItems });
         if (existing) return existing;
-        const { item, toppings, drinks, totalAmount } = await quoteOrder(tx, input);
+        const { item, toppings, drinks, additionalFoods, totalAmount } = await quoteOrder(tx, input);
         const created = await tx.order.create({
           data: {
             customerName: input.customerName,
@@ -59,7 +60,10 @@ export async function createPricedOrder(db: PrismaClient, input: CreateOrderInpu
                 toppingName: topping.name,
                 toppingPrice: topping.priceInAgorot,
               })) },
-            }, ...drinks.map((drink) => ({ menuItemId: drink.id, itemName: drink.name, unitPrice: drink.priceInAgorot, quantity: drink.quantity }))] },
+            }, ...additionalFoods.map((food) => ({
+              menuItemId: food.item.id, itemName: food.item.name, unitPrice: food.item.priceInAgorot, quantity: food.quantity,
+              toppings: { create: food.toppings.map((topping) => ({ toppingId: topping.id, toppingName: topping.name, toppingPrice: topping.priceInAgorot })) },
+            })), ...drinks.map((drink) => ({ menuItemId: drink.id, itemName: drink.name, unitPrice: drink.priceInAgorot, quantity: drink.quantity }))] },
           },
           include: orderWithItems,
         });

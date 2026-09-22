@@ -10,7 +10,19 @@ const orderIdSchema = z.string({ error: 'معرّف الصنف أو الإضاف
   .min(1, 'يرجى اختيار صنف').max(128, 'معرّف الصنف أو الإضافة غير صالح')
   .regex(/^[a-zA-Z0-9_-]+$/, 'معرّف الصنف أو الإضافة غير صالح');
 
+const foodSelectionSchema = z.strictObject({
+  menuItemId: orderIdSchema,
+  selectedToppingIds: z.array(orderIdSchema, { error: 'الإضافات غير صالحة' })
+    .max(MAX_ORDER_TOPPINGS, 'عدد الإضافات أكبر من المسموح')
+    .refine((ids) => new Set(ids).size === ids.length, 'لا يمكن تكرار الإضافة')
+    .default([]),
+  quantity: z.number({ error: 'يرجى اختيار كمية صحيحة' })
+    .int('يرجى اختيار كمية صحيحة').min(1, 'الكمية يجب أن تكون بين 1 و20')
+    .max(MAX_ORDER_QUANTITY, 'الكمية يجب أن تكون بين 1 و20'),
+});
+
 export const createOrderSchema = z.strictObject({
+  additionalFoods: z.array(foodSelectionSchema).max(19).optional(),
   menuItemId: orderIdSchema,
   drinks: z.array(z.strictObject({ menuItemId: orderIdSchema, quantity: z.number().int().min(1).max(MAX_ORDER_QUANTITY) }))
     .max(20).refine((drinks) => new Set(drinks.map((drink) => drink.menuItemId)).size === drinks.length, 'لا يمكن تكرار المشروب').optional(),
@@ -24,7 +36,10 @@ export const createOrderSchema = z.strictObject({
   customerName: z.string({ error: 'يرجى إدخال الاسم' }).trim()
     .min(2, 'يرجى إدخال اسم من حرفين على الأقل').max(80, 'الاسم أطول من المسموح')
     .refine((name) => !/[\p{Cc}\u202A-\u202E\u2066-\u2069]/u.test(name), 'الاسم يحتوي على رموز غير صالحة'),
-}, { error: 'بيانات الطلب غير صالحة' });
+}, { error: 'بيانات الطلب غير صالحة' }).refine((input) => {
+  const ids = [input.menuItemId, ...(input.additionalFoods ?? []).map((item) => item.menuItemId)];
+  return new Set(ids).size === ids.length;
+}, 'لا يمكن تكرار الصنف');
 
 export type CreateOrderInput = z.infer<typeof createOrderSchema>;
 
