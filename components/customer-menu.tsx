@@ -28,12 +28,12 @@ export default function CustomerMenu({ menuItems }: { menuItems: CustomerMenuIte
     toppings: item.toppings.filter((topping) => topping.isAvailable && selections[item.id].toppingIds.includes(topping.id)),
   }));
   const missingFood = Object.keys(selections).some((id) => !selectedFoods.some((food) => food.id === id));
-  const total = selectedFoods.length ? selectedFoods.reduce((sum, food) => sum + (food.priceInAgorot + food.toppings.reduce((price, topping) => price + topping.priceInAgorot, 0)) * food.quantity, 0) + selectedDrinks.reduce((sum, drink) => sum + drink.priceInAgorot * drink.quantity, 0) : 0;
+  const total = selectedFoods.reduce((sum, food) => sum + (food.priceInAgorot + food.toppings.reduce((price, topping) => price + topping.priceInAgorot, 0)) * food.quantity, 0) + selectedDrinks.reduce((sum, drink) => sum + drink.priceInAgorot * drink.quantity, 0);
   const refreshMenu = () => startRefresh(() => router.refresh());
 
   const handleSubmit = async () => {
     if (isSubmitting) return;
-    if (!selectedFoods.length || missingFood) {
+    if ((!selectedFoods.length && !selectedDrinks.length) || missingFood) {
       setStatusMessage('يرجى اختيار صنف');
       return;
     }
@@ -44,7 +44,9 @@ export default function CustomerMenu({ menuItems }: { menuItems: CustomerMenuIte
 
     setStatusMessage('');
     const foods = selectedFoods.map((food) => ({ menuItemId: food.id, quantity: food.quantity, selectedToppingIds: food.toppings.map((topping) => topping.id) }));
-    await submit({ ...foods[0], ...(foods.length > 1 ? { additionalFoods: foods.slice(1) } : {}), drinks: selectedDrinks.map((drink) => ({ menuItemId: drink.id, quantity: drink.quantity })), customerName: customerName.trim() });
+    const drinks = selectedDrinks.map((drink) => ({ menuItemId: drink.id, quantity: drink.quantity }));
+    const primary = foods[0] ?? { ...drinks[0], selectedToppingIds: [] };
+    await submit({ ...primary, ...(foods.length > 1 ? { additionalFoods: foods.slice(1) } : {}), drinks: foods.length ? drinks : drinks.slice(1), customerName: customerName.trim() });
   };
 
   const { enableAlerts, alertMessage } = useReadyAlert(currentOrder);
@@ -94,7 +96,7 @@ export default function CustomerMenu({ menuItems }: { menuItems: CustomerMenuIte
           </div>
         ) : (
           <>
-            {!foodItems.some((item) => item.isAvailable) && <p role="status" className="mb-6 rounded-2xl border-2 border-blue bg-yellow p-4 font-bold">الأصناف غير متوفرة حالياً. ننتظرك قريباً!</p>}
+            {!menuItems.some((item) => item.isAvailable) && <p role="status" className="mb-6 rounded-2xl border-2 border-blue bg-yellow p-4 font-bold">الأصناف غير متوفرة حالياً. ننتظرك قريباً!</p>}
             {missingFood && <p role="status" className="mb-6 rounded-2xl bg-yellow p-4 font-bold">الصنف الذي اخترته لم يعد متوفراً. أزل الصنف غير المتوفر أو حدّث القائمة.</p>}
             <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
               <div className="min-w-0 space-y-8">
@@ -103,7 +105,7 @@ export default function CustomerMenu({ menuItems }: { menuItems: CustomerMenuIte
                   onQuantityChange={(id, quantity) => setSelections((previous) => ({ ...previous, [id]: { ...previous[id], quantity } }))}
                   onToppingToggle={(id, toppingId) => setSelections((previous) => ({ ...previous, [id]: { ...previous[id], toppingIds: previous[id].toppingIds.includes(toppingId) ? previous[id].toppingIds.filter((value) => value !== toppingId) : [...previous[id].toppingIds, toppingId] } }))} />
                 {missingFood && <button type="button" onClick={() => setSelections((previous) => Object.fromEntries(Object.entries(previous).filter(([id]) => selectedFoods.some((food) => food.id === id))))} className="min-h-11 rounded-xl border-2 border-blue px-4 font-bold">إزالة الأصناف غير المتوفرة</button>}
-                <DrinkPicker items={drinkItems} quantities={drinkQuantities} disabled={isSubmitting || !selectedFoods.length} onChange={(id, amount) => setDrinkQuantities((previous) => ({ ...previous, [id]: amount }))} />
+                <DrinkPicker items={drinkItems} quantities={drinkQuantities} disabled={isSubmitting} onChange={(id, amount) => setDrinkQuantities((previous) => ({ ...previous, [id]: amount }))} />
               </div>
               <OrderForm drinks={selectedDrinks} foods={selectedFoods} blocked={missingFood}
                 name={customerName} onNameChange={setCustomerName} total={total} submitting={isSubmitting}

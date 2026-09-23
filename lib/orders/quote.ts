@@ -19,7 +19,7 @@ export async function quoteOrder(db: Prisma.TransactionClient, input: CreateOrde
   });
   const foods = selections.map((selection, index) => {
     const item = availableFoods.find((food) => food.id === selection.menuItemId);
-    // Retain support for older clients that selected a drink as their primary item.
+    // The primary item may be food or drink; additionalFoods must contain foods.
     if (!item || (index > 0 && item.category !== 'FOOD')) throw new OrderRequestError('هذا الصنف غير متوفر حالياً');
     const allowed = new Map(item.toppings.map(({ topping }) => [topping.id, topping]));
     const toppings = selection.selectedToppingIds.map((id) => {

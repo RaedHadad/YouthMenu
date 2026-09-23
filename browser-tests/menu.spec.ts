@@ -535,3 +535,29 @@ test('selects multiple foods with independent quantities and toppings beside the
   expect(order.items.find((item) => item.itemName === 'توست')?.toppings).toHaveLength(1);
   expect(order.items.find((item) => item.itemName === 'مقدوحه')?.toppings).toHaveLength(0);
 });
+
+
+test('orders drinks independently and keeps them when food is removed', async ({ page }) => {
+  await page.goto('/');
+  const addDrink = page.getByRole('button', { name: 'زيادة كمية تروبيت' });
+  await expect(addDrink).toBeEnabled();
+  await addDrink.click();
+  await addDrink.click();
+  await expect(page.getByRole('status', { name: 'الإجمالي', exact: true })).toHaveText('₪2');
+  const food = page.getByRole('checkbox', { name: /^توست/ });
+  await food.check();
+  await expect(page.getByRole('status', { name: 'الإجمالي', exact: true })).toHaveText('₪7');
+  await food.uncheck();
+  await expect(page.getByRole('status', { name: 'الإجمالي', exact: true })).toHaveText('₪2');
+  await expect(page.getByRole('button', { name: 'أرسل الطلب' })).toBeEnabled();
+  await page.getByRole('textbox', { name: 'الاسم', exact: true }).fill('مشروبات فقط');
+  await page.getByRole('button', { name: 'أرسل الطلب' }).click();
+  await expect(page.getByRole('heading', { name: /بون الطلب/ })).toBeVisible();
+  await expect(page.getByText('2 × تروبيت', { exact: true })).toBeVisible();
+  await expect(page.getByText('₪2', { exact: true })).toBeVisible();
+  await page.reload();
+  await expect(page.getByText('2 × تروبيت', { exact: true })).toBeVisible();
+  const order = await db.order.findFirstOrThrow({ where: { customerName: 'مشروبات فقط' }, include: { items: true } });
+  expect(order.items).toHaveLength(1);
+  expect(order.totalAmount).toBe(200);
+});

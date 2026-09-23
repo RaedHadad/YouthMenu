@@ -18,14 +18,14 @@ export function OrderForm({ foods, blocked, drinks = [], name, onNameChange, tot
       <div className="rounded-3xl bg-cream p-5 sm:p-6">
         <h2 className="mb-6 flex items-center gap-3 text-2xl font-black"><span className="step-number" aria-hidden="true">٢</span> تفاصيل الطلب</h2>
         <div className="mb-6 border-y-2 border-dashed border-blue/20 py-5">
-          {!foods.length && <p className="font-bold">اختر صنفاً أو أكثر من القائمة لتبدأ طلبك.</p>}
+          {(!foods.length && !drinks.length) && <p className="font-bold">اختر صنفاً أو أكثر من القائمة لتبدأ طلبك.</p>}
           {foods.map((food) => <div key={food.id} className="mb-3">
             <p className="break-words text-xl font-black">{food.quantity} × {food.name}</p>
             <p className="mt-2 text-sm leading-7">{food.toppings.map((topping) => topping.name).join('، ') || 'بدون إضافات'}</p>
           </div>)}
-          {!!foods.length && drinks.map((drink) => <p key={drink.id} className="mt-2 text-sm font-bold">{drink.quantity} × {drink.name} — <bdi>{formatMoney(drink.priceInAgorot * drink.quantity)}</bdi></p>)}
+          {!(!foods.length && !drinks.length) && drinks.map((drink) => <p key={drink.id} className="mt-2 text-sm font-bold">{drink.quantity} × {drink.name} — <bdi>{formatMoney(drink.priceInAgorot * drink.quantity)}</bdi></p>)}
         </div>
-        <fieldset disabled={!foods.length || blocked || submitting} className="space-y-5 disabled:opacity-60">
+        <fieldset disabled={(!foods.length && !drinks.length) || blocked || submitting} className="space-y-5 disabled:opacity-60">
           <div>
             <label htmlFor="customer-name" className="mb-2 block font-bold">الاسم</label>
             <input id="customer-name" name="customerName" autoComplete="name" value={name} required minLength={2} maxLength={80}
@@ -38,7 +38,7 @@ export function OrderForm({ foods, blocked, drinks = [], name, onNameChange, tot
           <span>الإجمالي</span><output aria-label="الإجمالي" aria-live="polite" dir="ltr" className="text-3xl">{formatMoney(total)}</output>
         </div>
         {message && <p role="alert" className="mt-4 rounded-xl border border-red bg-red/10 p-3 text-sm font-bold text-[#982719]">{message}</p>}
-        <button type="submit" disabled={submitting || !foods.length || blocked} className="mt-6 flex min-h-14 w-full items-center justify-center gap-3 rounded-2xl bg-blue px-4 py-3 text-lg font-black text-white disabled:cursor-not-allowed disabled:opacity-50">
+        <button type="submit" disabled={submitting || (!foods.length && !drinks.length) || blocked} className="mt-6 flex min-h-14 w-full items-center justify-center gap-3 rounded-2xl bg-blue px-4 py-3 text-lg font-black text-white disabled:cursor-not-allowed disabled:opacity-50">
           {submitting ? 'جاري الإرسال…' : 'أرسل الطلب'}<ArrowLeft className="size-5" aria-hidden="true" />
         </button>
         <p className="mt-4 flex items-center justify-center gap-2 text-center text-sm font-bold leading-6"><Banknote className="size-5 shrink-0" aria-hidden="true" />الدفع نقداً عند الاستلام</p>

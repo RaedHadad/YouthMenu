@@ -136,3 +136,7 @@ allowed toppings. Quantity controls appear beneath each selected food card.
 Additional foods use the optional `additionalFoods` request field, keeping
 existing single-food requests and pending-order recovery compatible. All food
 and drink lines are priced server-side and saved on the same order/receipt.
+
+Drinks are selectable without food. For drink-only orders, the first selected
+drink uses the primary item fields and remaining drinks use `drinks`; quantities,
+prices, receipt snapshots, and pending-order recovery follow the same flow.
