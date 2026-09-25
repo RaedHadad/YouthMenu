@@ -19,7 +19,7 @@ export function OrderForm({ foods, blocked, drinks = [], name, onNameChange, tot
         <h2 className="mb-6 flex items-center gap-3 text-2xl font-black"><span className="step-number" aria-hidden="true">٢</span> تفاصيل الطلب</h2>
         <div className="mb-6 border-y-2 border-dashed border-blue/20 py-5">
           {(!foods.length && !drinks.length) && <p className="font-bold">اختر صنفاً أو أكثر من القائمة لتبدأ طلبك.</p>}
-          {foods.map((food) => <div key={food.id} className="mb-3">
+          {foods.map((food, index) => <div key={`${food.id}:${index}`} className="mb-3">
             <p className="break-words text-xl font-black">{food.quantity} × {food.name}</p>
             <p className="mt-2 text-sm leading-7">{food.toppings.map((topping) => topping.name).join('، ') || 'بدون إضافات'}</p>
           </div>)}

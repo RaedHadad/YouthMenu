@@ -736,4 +736,20 @@ describe('PostgreSQL migrations and relational invariants', () => {
     expect(await (await handleCreateOrder(orderRequest(body, key), db)).json()).toEqual(created);
   });
 
+  it('keeps different toppings on repeated food lines and limits their combined quantity', async () => {
+    const { dish, topping, input } = await orderFixture(db);
+    const key = tokenHash();
+    const body = { ...input, quantity: 1, additionalFoods: [{ menuItemId: dish.id, quantity: 1, selectedToppingIds: [] }] };
+    const response = await handleCreateOrder(orderRequest(body, key), db);
+    expect(response.status).toBe(201);
+    const created = await response.json();
+    expect(created.totalAmount).toBe(2225);
+    expect(created.items).toHaveLength(2);
+    expect(created.items.map((item: { toppings: string }) => item.toppings).sort()).toEqual(['', topping.name].sort());
+    expect((await handleCreateOrder(orderRequest({ ...body, additionalFoods: [{ ...body.additionalFoods[0], selectedToppingIds: [topping.id] }] }, key), db)).status).toBe(409);
+    expect((await handleCreateOrder(orderRequest({ ...body, quantity: 20 }), db)).status).toBe(400);
+    await db.topping.update({ where: { id: topping.id }, data: { name: 'اسم محدث ' + tokenHash().slice(0, 8), priceInAgorot: 900 } });
+    expect(await (await handleCreateOrder(orderRequest(body, key), db)).json()).toEqual(created);
+  });
+
 });

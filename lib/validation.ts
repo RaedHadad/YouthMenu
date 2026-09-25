@@ -37,9 +37,10 @@ export const createOrderSchema = z.strictObject({
     .min(2, 'يرجى إدخال اسم من حرفين على الأقل').max(80, 'الاسم أطول من المسموح')
     .refine((name) => !/[\p{Cc}\u202A-\u202E\u2066-\u2069]/u.test(name), 'الاسم يحتوي على رموز غير صالحة'),
 }, { error: 'بيانات الطلب غير صالحة' }).refine((input) => {
-  const ids = [input.menuItemId, ...(input.additionalFoods ?? []).map((item) => item.menuItemId)];
-  return new Set(ids).size === ids.length;
-}, 'لا يمكن تكرار الصنف');
+  const quantities = new Map<string, number>();
+  for (const food of [input, ...(input.additionalFoods ?? [])]) quantities.set(food.menuItemId, (quantities.get(food.menuItemId) ?? 0) + food.quantity);
+  return [...quantities.values()].every((quantity) => quantity <= MAX_ORDER_QUANTITY);
+}, 'الحد الأقصى 20 قطعة من كل صنف');
 
 export type CreateOrderInput = z.infer<typeof createOrderSchema>;
 

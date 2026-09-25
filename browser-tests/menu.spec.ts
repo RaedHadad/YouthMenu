@@ -331,7 +331,9 @@ test('kitchen receives orders through fallback and moves them safely between col
   const password = 'Test-only-password-2026!';
   await db.admin.create({ data: { email: 'kitchen@example.com', passwordHash: await hash(password, 12) } });
   await context.request.post('/api/admin/login', { headers: { Origin: 'http://127.0.0.1:3107' }, data: { email: 'kitchen@example.com', password } });
+  const initialRefresh = page.waitForResponse((response) => response.url().endsWith('/api/admin/orders') && response.status() === 200);
   await page.goto('/admin');
+  await initialRefresh;
   await expect(page.getByText('تحديث تلقائي كل 8 ثوانٍ')).toBeVisible();
   const dish = await db.menuItem.findUniqueOrThrow({ where: { name: 'توست' } });
   const response = await context.request.post('/api/orders', { headers: { 'Idempotency-Key': 'f'.repeat(64) },
@@ -560,4 +562,42 @@ test('orders drinks independently and keeps them when food is removed', async ({
   const order = await db.order.findFirstOrThrow({ where: { customerName: 'مشروبات فقط' }, include: { items: true } });
   expect(order.items).toHaveLength(1);
   expect(order.totalAmount).toBe(200);
+});
+
+
+test('same food can have separate topping versions on receipt and kitchen order', async ({ page, context }) => {
+  await db.admin.create({ data: { email: 'variants@example.com', passwordHash: await hash('Test-only-password-2026!', 12) } });
+  await context.request.post('/api/admin/login', { headers: { Origin: 'http://127.0.0.1:3107' }, data: { email: 'variants@example.com', password: 'Test-only-password-2026!' } });
+  await db.topping.update({ where: { name: 'كاتشب' }, data: { priceInAgorot: 100 } });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  const card = page.getByRole('article', { name: 'مقدوحه', exact: true });
+  await card.getByRole('checkbox', { name: /^مقدوحه،/ }).check();
+  await card.getByRole('checkbox', { name: /كاتشب/ }).check();
+  await card.getByRole('button', { name: 'إضافة نسخة بإضافات مختلفة' }).click();
+  const first = page.getByRole('region', { name: 'نسخة 1 من مقدوحه', exact: true });
+  const second = page.getByRole('region', { name: 'نسخة 2 من مقدوحه', exact: true });
+  await expect(first.getByRole('checkbox', { name: /كاتشب/ })).toBeChecked();
+  await expect(second.getByRole('checkbox', { name: /كاتشب/ })).not.toBeChecked();
+  await second.getByRole('checkbox', { name: /خردل/ }).check();
+  await expect(first.getByRole('checkbox', { name: /خردل/ })).not.toBeChecked();
+  await expect(page.getByRole('status', { name: 'الإجمالي', exact: true })).toHaveText('₪11');
+  await card.getByRole('button', { name: 'إضافة نسخة بإضافات مختلفة' }).click();
+  await page.getByRole('region', { name: 'نسخة 3 من مقدوحه', exact: true }).getByRole('button', { name: 'إزالة النسخة' }).click();
+  await expect(page.getByRole('status', { name: 'الإجمالي', exact: true })).toHaveText('₪11');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.getByRole('textbox', { name: 'الاسم', exact: true }).fill('نسخ مختلفة');
+  await page.getByRole('button', { name: 'أرسل الطلب' }).click();
+  await expect(page.getByRole('heading', { name: /بون الطلب/ })).toBeVisible();
+  await expect(page.getByText('1 × مقدوحه', { exact: true })).toHaveCount(2);
+  await page.reload();
+  await expect(page.getByText('1 × مقدوحه', { exact: true })).toHaveCount(2);
+  const order = await db.order.findFirstOrThrow({ where: { customerName: 'نسخ مختلفة' }, include: { items: { include: { toppings: true } } } });
+  expect(order.items.map((item) => item.toppings.map((topping) => topping.toppingName))).toEqual(expect.arrayContaining([['كاتشب'], ['خردل']]));
+  await page.goto('/admin');
+  const rows = page.locator('[aria-label^="عنصر الطلب "]');
+  await expect(rows).toHaveCount(2);
+  await expect(rows.filter({ hasText: 'كاتشب' })).toHaveCount(1);
+  await expect(rows.filter({ hasText: 'خردل' })).toHaveCount(1);
+  await expect(rows.filter({ hasText: 'كاتشب' }).filter({ hasText: 'خردل' })).toHaveCount(0);
 });

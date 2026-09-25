@@ -89,8 +89,10 @@ export default function AdminDashboard({ initialOrders }: { initialOrders: Admin
 
                       <div className="space-y-2 text-sm text-[#1E56C9]">
                         <div>الاسم: <strong>{order.customerName}</strong></div>
-                        <div>الصنف: {order.items.map((item) => `${item.quantity} × ${item.itemName}`).join(', ')}</div>
-                        <div>الإضافات: {order.items.flatMap((item) => item.toppings.map((topping) => topping.toppingName)).join(', ') || 'لا يوجد'}</div>
+                        {order.items.map((item, index) => <div key={index} className="rounded-lg border border-blue/20 p-2" aria-label={`عنصر الطلب ${index + 1}`}>
+                          <p className="font-bold">{item.quantity} × {item.itemName}</p>
+                          <p>الإضافات: {item.toppings.map((topping) => topping.toppingName).join('، ') || 'لا يوجد'}</p>
+                        </div>)}
                         <div>السعر: <strong>{formatMoney(order.totalAmount)}</strong></div>
                         <div>وقت الطلب: {new Date(order.createdAt).toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })}</div>
                         <div className="inline-flex items-center gap-2"><Clock3 className="h-4 w-4" /> الوقت المقدر: {order.estimatedMinutes == null ? 'لم يحدد بعد' : `${order.estimatedMinutes} دقيقة`}</div>

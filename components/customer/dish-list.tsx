@@ -3,11 +3,13 @@ import type { CustomerMenuItem } from '@/lib/customer-types';
 import { ToppingPicker } from './topping-picker';
 import { formatMoney } from '@/lib/money';
 
-export function DishList({ items, selections, onSelect, onQuantityChange, onToppingToggle, disabled }: {
+export function DishList({ items, selections, onSelect, onQuantityChange, onToppingToggle, onAddVariant, onRemoveVariant, disabled }: {
   items: CustomerMenuItem[];
-  selections: Record<string, { quantity: number; toppingIds: string[] }>;
-  onQuantityChange: (id: string, quantity: number) => void;
-  onToppingToggle: (id: string, toppingId: string) => void;
+  selections: Record<string, { quantity: number; toppingIds: string[] }[]>;
+  onQuantityChange: (id: string, index: number, quantity: number) => void;
+  onToppingToggle: (id: string, index: number, toppingId: string) => void;
+  onAddVariant: (id: string) => void;
+  onRemoveVariant: (id: string, index: number) => void;
   onSelect: (id: string) => void;
   disabled: boolean;
 }) {
@@ -45,15 +47,19 @@ export function DishList({ items, selections, onSelect, onQuantityChange, onTopp
             </span>
           </label>
           {selections[item.id] && item.isAvailable && <div className="mt-3 space-y-3 rounded-3xl border-2 border-blue/20 bg-cream p-3">
+            {selections[item.id].map((variant, variantIndex) => <section key={variantIndex} aria-label={`نسخة ${variantIndex + 1} من ${item.name}`} className="space-y-3 border-b border-blue/20 pb-3 last:border-0">
+            {selections[item.id].length > 1 && <div className="flex items-center justify-between gap-2"><h3 className="font-bold">النسخة {variantIndex + 1}</h3><button type="button" onClick={() => onRemoveVariant(item.id, variantIndex)} className="min-h-11 px-3 font-bold underline">إزالة النسخة</button></div>}
             <div role="group" aria-label={`كمية ${item.name}`} className="flex flex-wrap items-center justify-between gap-3">
               <span className="font-bold">الكمية</span>
               <div className="flex items-center gap-2">
-                <button type="button" aria-label="تقليل الكمية" disabled={selections[item.id].quantity <= 1} onClick={() => onQuantityChange(item.id, selections[item.id].quantity - 1)} className="quantity-button"><Minus className="size-5" aria-hidden="true" /></button>
-                <output aria-live="polite" className="min-w-6 text-center font-black">{selections[item.id].quantity}</output>
-                <button type="button" aria-label="زيادة الكمية" disabled={selections[item.id].quantity >= 20} onClick={() => onQuantityChange(item.id, selections[item.id].quantity + 1)} className="quantity-button"><Plus className="size-5" aria-hidden="true" /></button>
+                <button type="button" aria-label="تقليل الكمية" disabled={variant.quantity <= 1} onClick={() => onQuantityChange(item.id, variantIndex, variant.quantity - 1)} className="quantity-button"><Minus className="size-5" aria-hidden="true" /></button>
+                <output aria-live="polite" className="min-w-6 text-center font-black">{variant.quantity}</output>
+                <button type="button" aria-label="زيادة الكمية" disabled={selections[item.id].reduce((sum, entry) => sum + entry.quantity, 0) >= 20} onClick={() => onQuantityChange(item.id, variantIndex, variant.quantity + 1)} className="quantity-button"><Plus className="size-5" aria-hidden="true" /></button>
               </div>
             </div>
-            <ToppingPicker item={item} selectedIds={selections[item.id].toppingIds} onToggle={(toppingId) => onToppingToggle(item.id, toppingId)} disabled={disabled} />
+            <ToppingPicker item={item} selectedIds={variant.toppingIds} onToggle={(toppingId) => onToppingToggle(item.id, variantIndex, toppingId)} disabled={disabled} />
+            </section>)}
+            <button type="button" onClick={() => onAddVariant(item.id)} disabled={Object.values(selections).flat().length >= 20 || selections[item.id].reduce((sum, variant) => sum + variant.quantity, 0) >= 20} className="min-h-12 w-full rounded-xl border-2 border-blue bg-white px-3 py-2 font-bold disabled:opacity-50">إضافة نسخة بإضافات مختلفة</button>
           </div>}
           </article>
         ))}

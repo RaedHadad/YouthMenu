@@ -140,3 +140,9 @@ and drink lines are priced server-side and saved on the same order/receipt.
 Drinks are selectable without food. For drink-only orders, the first selected
 drink uses the primary item fields and remaining drinks use `drinks`; quantities,
 prices, receipt snapshots, and pending-order recovery follow the same flow.
+
+A selected food can have multiple topping versions using "إضافة نسخة بإضافات مختلفة".
+Each version has its own quantity and toppings and is saved as a separate order
+item. The 20-piece limit applies across versions of the same food; an order can
+contain at most 20 food lines. Kitchen cards keep toppings with their corresponding
+line, matching the customer receipt and order history.

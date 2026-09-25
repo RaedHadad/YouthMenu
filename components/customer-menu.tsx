@@ -15,7 +15,7 @@ import { MenuHeader } from '@/components/customer/menu-header';
 export default function CustomerMenu({ menuItems }: { menuItems: CustomerMenuItem[] }) {
   const router = useRouter();
   const [refreshing, startRefresh] = useTransition();
-  const [selections, setSelections] = useState<Record<string, { quantity: number; toppingIds: string[] }>>({});
+  const [selections, setSelections] = useState<Record<string, { quantity: number; toppingIds: string[] }[]>>({});
   const [drinkQuantities, setDrinkQuantities] = useState<Record<string, number>>({});
   const [customerName, setCustomerName] = useState('');
   const [statusMessage, setStatusMessage] = useState('');
@@ -23,10 +23,10 @@ export default function CustomerMenu({ menuItems }: { menuItems: CustomerMenuIte
   const foodItems = menuItems.filter((item) => item.category !== 'DRINK');
   const drinkItems = menuItems.filter((item) => item.category === 'DRINK');
   const selectedDrinks = drinkItems.filter((item) => item.isAvailable && drinkQuantities[item.id] > 0).map((item) => ({ ...item, quantity: drinkQuantities[item.id] }));
-  const selectedFoods = foodItems.filter((item) => item.isAvailable && selections[item.id]).map((item) => ({
-    ...item, quantity: selections[item.id].quantity,
-    toppings: item.toppings.filter((topping) => topping.isAvailable && selections[item.id].toppingIds.includes(topping.id)),
-  }));
+  const selectedFoods = foodItems.filter((item) => item.isAvailable && selections[item.id]).flatMap((item) => selections[item.id].map((variant) => ({
+    ...item, quantity: variant.quantity,
+    toppings: item.toppings.filter((topping) => topping.isAvailable && variant.toppingIds.includes(topping.id)),
+  })));
   const missingFood = Object.keys(selections).some((id) => !selectedFoods.some((food) => food.id === id));
   const total = selectedFoods.reduce((sum, food) => sum + (food.priceInAgorot + food.toppings.reduce((price, topping) => price + topping.priceInAgorot, 0)) * food.quantity, 0) + selectedDrinks.reduce((sum, drink) => sum + drink.priceInAgorot * drink.quantity, 0);
   const refreshMenu = () => startRefresh(() => router.refresh());
@@ -101,9 +101,11 @@ export default function CustomerMenu({ menuItems }: { menuItems: CustomerMenuIte
             <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
               <div className="min-w-0 space-y-8">
                 <DishList items={foodItems} selections={selections} disabled={isSubmitting}
-                  onSelect={(id) => { setSelections((previous) => { const next = { ...previous }; if (next[id]) delete next[id]; else if (Object.keys(next).length < 20) next[id] = { quantity: 1, toppingIds: [] }; return next; }); setStatusMessage(''); }}
-                  onQuantityChange={(id, quantity) => setSelections((previous) => ({ ...previous, [id]: { ...previous[id], quantity } }))}
-                  onToppingToggle={(id, toppingId) => setSelections((previous) => ({ ...previous, [id]: { ...previous[id], toppingIds: previous[id].toppingIds.includes(toppingId) ? previous[id].toppingIds.filter((value) => value !== toppingId) : [...previous[id].toppingIds, toppingId] } }))} />
+                  onSelect={(id) => { setSelections((previous) => { const next = { ...previous }; if (next[id]) delete next[id]; else if (Object.values(next).flat().length < 20) next[id] = [{ quantity: 1, toppingIds: [] }]; return next; }); setStatusMessage(''); }}
+                  onQuantityChange={(id, index, quantity) => setSelections((previous) => ({ ...previous, [id]: previous[id].map((variant, i) => i === index ? { ...variant, quantity } : variant) }))}
+                  onToppingToggle={(id, index, toppingId) => setSelections((previous) => ({ ...previous, [id]: previous[id].map((variant, i) => i === index ? { ...variant, toppingIds: variant.toppingIds.includes(toppingId) ? variant.toppingIds.filter((value) => value !== toppingId) : [...variant.toppingIds, toppingId] } : variant) }))}
+                  onAddVariant={(id) => setSelections((previous) => Object.values(previous).flat().length >= 20 || previous[id].reduce((sum, variant) => sum + variant.quantity, 0) >= 20 ? previous : ({ ...previous, [id]: [...previous[id], { quantity: 1, toppingIds: [] }] }))}
+                  onRemoveVariant={(id, index) => setSelections((previous) => ({ ...previous, [id]: previous[id].filter((_, i) => i !== index) }))} />
                 {missingFood && <button type="button" onClick={() => setSelections((previous) => Object.fromEntries(Object.entries(previous).filter(([id]) => selectedFoods.some((food) => food.id === id))))} className="min-h-11 rounded-xl border-2 border-blue px-4 font-bold">إزالة الأصناف غير المتوفرة</button>}
                 <DrinkPicker items={drinkItems} quantities={drinkQuantities} disabled={isSubmitting} onChange={(id, amount) => setDrinkQuantities((previous) => ({ ...previous, [id]: amount }))} />
               </div>
