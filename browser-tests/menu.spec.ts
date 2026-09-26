@@ -33,6 +33,7 @@ test('adds food with independent topping drafts', async ({ page }) => {
   await toast.getByRole('checkbox', { name: /كاتشب/ }).check();
   await expect(page.getByRole('button', { name: 'أرسل الطلب' })).toBeDisabled();
   await toast.getByRole('button', { name: 'إضافة توست للطلب' }).click();
+  await expect(toast.getByRole('checkbox', { name: /كاتشب/ })).not.toBeChecked();
   await expect(page.locator('form')).toContainText('1 × توست');
   await expect(page.getByRole('article', { name: 'مقدوحه', exact: true }).getByRole('checkbox', { name: /كاتشب/ })).not.toBeChecked();
 });
@@ -78,6 +79,7 @@ test('submits identifiers and quantity with no browser-supplied price', async ({
   await page.goto('/');
   await page.getByRole('article', { name: 'توست', exact: true }).getByRole('checkbox', { name: /كاتشب/ }).check();
   await page.getByRole('button', { name: 'إضافة توست للطلب' }).click();
+  await page.getByRole('article', { name: 'توست', exact: true }).getByRole('checkbox', { name: /كاتشب/ }).check();
   await page.getByRole('button', { name: 'إضافة توست للطلب' }).click();
   await expect(page.getByRole('status', { name: 'الإجمالي', exact: true })).toHaveText('₪14');
   await page.getByRole('textbox', { name: 'الاسم', exact: true }).fill('أحمد');
@@ -193,6 +195,7 @@ test('receipt shows server snapshots and a decodable pickup credential after ref
   await page.goto('/');
   await page.getByRole('article', { name: 'توست', exact: true }).getByRole('checkbox', { name: /كاتشب/ }).check();
   await page.getByRole('button', { name: 'إضافة توست للطلب' }).click();
+  await page.getByRole('article', { name: 'توست', exact: true }).getByRole('checkbox', { name: /كاتشب/ }).check();
   await page.getByRole('button', { name: 'إضافة توست للطلب' }).click();
   await page.getByRole('textbox', { name: 'الاسم', exact: true }).fill('أحمد');
   await page.getByRole('button', { name: 'أرسل الطلب' }).click();
@@ -538,8 +541,10 @@ test('plus adds topping snapshots and cart minus removes only the selected line'
   const mustard = card.getByRole('checkbox', { name: /خردل/ });
   await ketchup.check();
   await add.click();
+  await expect(ketchup).not.toBeChecked();
+  await ketchup.check();
   await add.click();
-  await ketchup.uncheck();
+  await expect(ketchup).not.toBeChecked();
   await mustard.check();
   await add.click();
   const cart = page.locator('form');
@@ -551,6 +556,7 @@ test('plus adds topping snapshots and cart minus removes only the selected line'
   await expect(ketchupLine).toContainText('1 × مقدوحه');
   await mustardLine.getByRole('button').click();
   await expect(mustardLine).toHaveCount(0);
+  await mustard.check();
   await add.click();
   await page.getByRole('button', { name: 'إضافة توست للطلب' }).click();
   await page.getByRole('button', { name: 'زيادة كمية تروبيت' }).click();

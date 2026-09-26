@@ -25,7 +25,7 @@ export function DishList({ items, selections, onAdd, disabled }: {
         <p className="text-xl font-black"><bdi>{formatMoney(item.priceInAgorot)}</bdi></p>
         {!item.isAvailable && <p className="font-bold">غير متوفر</p>}
         <ToppingPicker item={item} selectedIds={toppingIds} disabled={disabled} onToggle={(id) => setDrafts((previous) => ({ ...previous, [item.id]: toppingIds.includes(id) ? toppingIds.filter((value) => value !== id) : [...toppingIds, id] }))} />
-        <button type="button" aria-label={`إضافة ${item.name} للطلب`} disabled={!item.isAvailable || full} onClick={() => onAdd(item.id, toppingIds)} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-blue px-3 py-3 font-bold text-white disabled:opacity-50"><Plus className="size-6" aria-hidden="true" /> إضافة للطلب</button>
+        <button type="button" aria-label={`إضافة ${item.name} للطلب`} disabled={!item.isAvailable || full} onClick={() => { onAdd(item.id, toppingIds); setDrafts((previous) => ({ ...previous, [item.id]: [] })); }} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-blue px-3 py-3 font-bold text-white disabled:opacity-50"><Plus className="size-6" aria-hidden="true" /> إضافة للطلب</button>
         <p role="status" className="text-center text-sm font-bold">في السلة: {count}{full ? ' — وصلت للحد المسموح' : ''}</p>
       </article>;
     })}</div>
