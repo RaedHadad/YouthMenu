@@ -1,9 +1,11 @@
-import { Banknote, ArrowLeft } from 'lucide-react';
+import { Banknote, ArrowLeft, Minus } from 'lucide-react';
 import type { CustomerMenuItem } from '@/lib/customer-types';
 import { formatMoney } from '@/lib/money';
 
-export function OrderForm({ foods, blocked, drinks = [], name, onNameChange, total, submitting, message, onSubmit }: {
-  foods: Array<CustomerMenuItem & { quantity: number }>;
+export function OrderForm({ foods, onRemoveFood, onRemoveDrink, blocked, drinks = [], name, onNameChange, total, submitting, message, onSubmit }: {
+  foods: Array<CustomerMenuItem & { quantity: number; variantIndex: number }>;
+  onRemoveFood: (id: string, index: number) => void;
+  onRemoveDrink: (id: string) => void;
   blocked: boolean;
   drinks?: Array<CustomerMenuItem & { quantity: number }>;
   name: string;
@@ -16,14 +18,14 @@ export function OrderForm({ foods, blocked, drinks = [], name, onNameChange, tot
   return (
     <form onSubmit={(event) => { event.preventDefault(); void onSubmit(); }} className="self-start rounded-[2rem] bg-blue p-3 shadow-[8px_8px_0_#FFD73E] lg:sticky lg:top-6">
       <div className="rounded-3xl bg-cream p-5 sm:p-6">
-        <h2 className="mb-6 flex items-center gap-3 text-2xl font-black"><span className="step-number" aria-hidden="true">٢</span> تفاصيل الطلب</h2>
+        <h2 className="mb-6 flex items-center gap-3 text-2xl font-black"><span className="step-number" aria-hidden="true">٢</span> السلة / تفاصيل الطلب</h2>
         <div className="mb-6 border-y-2 border-dashed border-blue/20 py-5">
           {(!foods.length && !drinks.length) && <p className="font-bold">اختر صنفاً أو أكثر من القائمة لتبدأ طلبك.</p>}
-          {foods.map((food, index) => <div key={`${food.id}:${index}`} className="mb-3">
-            <p className="break-words text-xl font-black">{food.quantity} × {food.name}</p>
+          {foods.map((food, index) => <div key={`${food.id}:${index}`} aria-label={`في السلة: ${food.name} ${index + 1}`} className="mb-3 rounded-xl border border-blue/20 p-3">
+            <div className="flex items-center justify-between gap-3"><p className="break-words text-xl font-black">{food.quantity} × {food.name}</p><button type="button" aria-label={`إزالة قطعة من ${food.name}`} disabled={submitting} onClick={() => onRemoveFood(food.id, food.variantIndex)} className="quantity-button shrink-0"><Minus className="size-5" aria-hidden="true" /></button></div>
             <p className="mt-2 text-sm leading-7">{food.toppings.map((topping) => topping.name).join('، ') || 'بدون إضافات'}</p>
           </div>)}
-          {!(!foods.length && !drinks.length) && drinks.map((drink) => <p key={drink.id} className="mt-2 text-sm font-bold">{drink.quantity} × {drink.name} — <bdi>{formatMoney(drink.priceInAgorot * drink.quantity)}</bdi></p>)}
+          {drinks.map((drink) => <div key={drink.id} className="mt-2 flex items-center justify-between gap-3 rounded-xl border border-blue/20 p-3"><p className="text-sm font-bold">{drink.quantity} × {drink.name} — <bdi>{formatMoney(drink.priceInAgorot * drink.quantity)}</bdi></p><button type="button" aria-label={`إزالة قطعة من ${drink.name}`} disabled={submitting} onClick={() => onRemoveDrink(drink.id)} className="quantity-button shrink-0"><Minus className="size-5" aria-hidden="true" /></button></div>)}
         </div>
         <fieldset disabled={(!foods.length && !drinks.length) || blocked || submitting} className="space-y-5 disabled:opacity-60">
           <div>

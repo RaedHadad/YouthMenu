@@ -23,8 +23,8 @@ export default function CustomerMenu({ menuItems }: { menuItems: CustomerMenuIte
   const foodItems = menuItems.filter((item) => item.category !== 'DRINK');
   const drinkItems = menuItems.filter((item) => item.category === 'DRINK');
   const selectedDrinks = drinkItems.filter((item) => item.isAvailable && drinkQuantities[item.id] > 0).map((item) => ({ ...item, quantity: drinkQuantities[item.id] }));
-  const selectedFoods = foodItems.filter((item) => item.isAvailable && selections[item.id]).flatMap((item) => selections[item.id].map((variant) => ({
-    ...item, quantity: variant.quantity,
+  const selectedFoods = foodItems.filter((item) => item.isAvailable && selections[item.id]).flatMap((item) => selections[item.id].map((variant, variantIndex) => ({
+    ...item, variantIndex, quantity: variant.quantity,
     toppings: item.toppings.filter((topping) => topping.isAvailable && variant.toppingIds.includes(topping.id)),
   })));
   const missingFood = Object.keys(selections).some((id) => !selectedFoods.some((food) => food.id === id));
@@ -100,16 +100,28 @@ export default function CustomerMenu({ menuItems }: { menuItems: CustomerMenuIte
             {missingFood && <p role="status" className="mb-6 rounded-2xl bg-yellow p-4 font-bold">الصنف الذي اخترته لم يعد متوفراً. أزل الصنف غير المتوفر أو حدّث القائمة.</p>}
             <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
               <div className="min-w-0 space-y-8">
-                <DishList items={foodItems} selections={selections} disabled={isSubmitting}
-                  onSelect={(id) => { setSelections((previous) => { const next = { ...previous }; if (next[id]) delete next[id]; else if (Object.values(next).flat().length < 20) next[id] = [{ quantity: 1, toppingIds: [] }]; return next; }); setStatusMessage(''); }}
-                  onQuantityChange={(id, index, quantity) => setSelections((previous) => ({ ...previous, [id]: previous[id].map((variant, i) => i === index ? { ...variant, quantity } : variant) }))}
-                  onToppingToggle={(id, index, toppingId) => setSelections((previous) => ({ ...previous, [id]: previous[id].map((variant, i) => i === index ? { ...variant, toppingIds: variant.toppingIds.includes(toppingId) ? variant.toppingIds.filter((value) => value !== toppingId) : [...variant.toppingIds, toppingId] } : variant) }))}
-                  onAddVariant={(id) => setSelections((previous) => Object.values(previous).flat().length >= 20 || previous[id].reduce((sum, variant) => sum + variant.quantity, 0) >= 20 ? previous : ({ ...previous, [id]: [...previous[id], { quantity: 1, toppingIds: [] }] }))}
-                  onRemoveVariant={(id, index) => setSelections((previous) => ({ ...previous, [id]: previous[id].filter((_, i) => i !== index) }))} />
+                <DishList items={foodItems} selections={selections} disabled={isSubmitting} onAdd={(id, toppingIds) => {
+                  setSelections((previous) => {
+                    const variants = previous[id] ?? [];
+                    if (variants.reduce((sum, variant) => sum + variant.quantity, 0) >= 20) return previous;
+                    const key = [...toppingIds].sort().join(',');
+                    const index = variants.findIndex((variant) => [...variant.toppingIds].sort().join(',') === key);
+                    if (index < 0 && Object.values(previous).flat().length >= 20) return previous;
+                    return { ...previous, [id]: index < 0 ? [...variants, { quantity: 1, toppingIds: [...toppingIds] }] : variants.map((variant, i) => i === index ? { ...variant, quantity: variant.quantity + 1 } : variant) };
+                  });
+                  setStatusMessage('');
+                }} />
                 {missingFood && <button type="button" onClick={() => setSelections((previous) => Object.fromEntries(Object.entries(previous).filter(([id]) => selectedFoods.some((food) => food.id === id))))} className="min-h-11 rounded-xl border-2 border-blue px-4 font-bold">إزالة الأصناف غير المتوفرة</button>}
                 <DrinkPicker items={drinkItems} quantities={drinkQuantities} disabled={isSubmitting} onChange={(id, amount) => setDrinkQuantities((previous) => ({ ...previous, [id]: amount }))} />
               </div>
               <OrderForm drinks={selectedDrinks} foods={selectedFoods} blocked={missingFood}
+                onRemoveFood={(id, index) => setSelections((previous) => {
+                  const next = { ...previous };
+                  next[id] = next[id].map((variant, i) => i === index ? { ...variant, quantity: variant.quantity - 1 } : variant).filter((variant) => variant.quantity > 0);
+                  if (!next[id].length) delete next[id];
+                  return next;
+                })}
+                onRemoveDrink={(id) => setDrinkQuantities((previous) => ({ ...previous, [id]: Math.max(0, (previous[id] ?? 0) - 1) }))}
                 name={customerName} onNameChange={setCustomerName} total={total} submitting={isSubmitting}
                 message={statusMessage || error} onSubmit={handleSubmit} />
             </div>

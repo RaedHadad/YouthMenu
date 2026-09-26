@@ -132,7 +132,7 @@ combined total, and includes drink selections in the idempotency fingerprint.
 Existing food-only pending requests retain their original replay fingerprint.
 
 Customers can select up to 20 different foods, each with its own quantity and
-allowed toppings. Quantity controls appear beneath each selected food card.
+allowed toppings. The + button on each food card adds one piece with its current topping choices; cart minus buttons remove one piece.
 Additional foods use the optional `additionalFoods` request field, keeping
 existing single-food requests and pending-order recovery compatible. All food
 and drink lines are priced server-side and saved on the same order/receipt.
@@ -141,8 +141,9 @@ Drinks are selectable without food. For drink-only orders, the first selected
 drink uses the primary item fields and remaining drinks use `drinks`; quantities,
 prices, receipt snapshots, and pending-order recovery follow the same flow.
 
-A selected food can have multiple topping versions using "إضافة نسخة بإضافات مختلفة".
-Each version has its own quantity and toppings and is saved as a separate order
-item. The 20-piece limit applies across versions of the same food; an order can
-contain at most 20 food lines. Kitchen cards keep toppings with their corresponding
-line, matching the customer receipt and order history.
+Food cards keep draft topping choices separate from the cart. Pressing + adds
+one piece with those toppings; identical food/topping combinations share a cart
+line and quantity, while different combinations remain separate. A minus button
+beside each cart line removes one piece and removes the line at zero. The
+20-piece limit applies across versions of the same food, with at most 20 food
+lines. Kitchen cards keep toppings beside the corresponding receipt line.
