@@ -478,9 +478,9 @@ test('admin adds food and drinks, customer orders both on one receipt', async ({
   await page.goto('/');
   await expect(page.getByRole('checkbox', { name: /^تروبيت/ })).toHaveCount(0);
   await page.getByRole('button', { name: 'إضافة وجبة جديدة للطلب' }).click();
-  await page.getByRole('button', { name: 'زيادة كمية عصير جديد' }).click();
-  await page.getByRole('button', { name: 'زيادة كمية عصير جديد' }).click();
-  await page.getByRole('button', { name: 'زيادة كمية تروبيت' }).click();
+  await page.getByRole('button', { name: 'إضافة عصير جديد للطلب' }).click();
+  await page.getByRole('button', { name: 'إضافة عصير جديد للطلب' }).click();
+  await page.getByRole('button', { name: 'إضافة تروبيت للطلب' }).click();
   await expect(page.getByRole('status', { name: 'الإجمالي', exact: true })).toHaveText('₪11');
   await page.getByRole('textbox', { name: 'الاسم', exact: true }).fill('طلب مع مشروبات');
   await page.getByRole('button', { name: 'أرسل الطلب' }).click();
@@ -506,7 +506,7 @@ test('admin adds food and drinks, customer orders both on one receipt', async ({
 
 test('orders drinks independently and keeps them when food is removed', async ({ page }) => {
   await page.goto('/');
-  const addDrink = page.getByRole('button', { name: 'زيادة كمية تروبيت' });
+  const addDrink = page.getByRole('button', { name: 'إضافة تروبيت للطلب' });
   await expect(addDrink).toBeEnabled();
   await addDrink.click();
   await addDrink.click();
@@ -559,7 +559,7 @@ test('plus adds topping snapshots and cart minus removes only the selected line'
   await mustard.check();
   await add.click();
   await page.getByRole('button', { name: 'إضافة توست للطلب' }).click();
-  await page.getByRole('button', { name: 'زيادة كمية تروبيت' }).click();
+  await page.getByRole('button', { name: 'إضافة تروبيت للطلب' }).click();
   await cart.getByRole('button', { name: 'إزالة قطعة من تروبيت' }).click();
   await expect(cart).not.toContainText('تروبيت');
   await expect(page.getByRole('status', { name: 'الإجمالي', exact: true })).toHaveText('₪15');
