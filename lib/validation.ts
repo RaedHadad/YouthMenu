@@ -43,28 +43,3 @@ export const createOrderSchema = z.strictObject({
 }, 'الحد الأقصى 20 قطعة من كل صنف');
 
 export type CreateOrderInput = z.infer<typeof createOrderSchema>;
-
-export const updateOrderStatusSchema = z.object({
-  status: z.enum(['PENDING', 'PREPARING', 'READY', 'COLLECTED', 'CANCELLED']),
-  estimatedMinutes: z.coerce.number().int().min(1).max(180).optional(),
-});
-
-export const menuItemSchema = z.object({
-  name: z.string().trim().min(2).max(80),
-  priceInAgorot: z.coerce.number().int().min(0).max(50000),
-  isAvailable: z.boolean().optional(),
-});
-
-export const toppingSchema = z.object({
-  name: z.string().trim().min(2).max(60),
-  priceInAgorot: z.coerce.number().int().min(0).max(20000),
-  isAvailable: z.boolean().optional(),
-});
-
-export const menuAdminMutationSchema = z.object({
-  entity: z.enum(['item', 'topping']),
-  id: z.string().optional(),
-  name: z.string().trim().min(2).max(80),
-  priceInAgorot: z.coerce.number().int().min(0).max(50000),
-  isAvailable: z.boolean().optional(),
-});

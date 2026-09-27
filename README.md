@@ -2,8 +2,8 @@
 
 Arabic RTL food ordering for cash payment at pickup. No online payment gateway.
 
-**Status: all 15 implementation phases delivered locally.** Live Ably, physical
-camera/printer checks and production deployment remain release gates. See
+**Status: deployed on Vercel.** Optional live Ably and physical
+camera/printer checks remain to be verified. See
 [phase verification](docs/final-verification.md) and [Vercel runbook](docs/deployment.md).
 
 ## Local setup
@@ -36,8 +36,8 @@ without a reachable initialized database, the Arabic error page offers a retry.
 ```sh
 npm run check       # route types, TypeScript, ESLint, 62 unit tests
 npm run db:validate
-npm run test:db     # 47 PostgreSQL integration tests; requires TEST_DATABASE_URL
-npm run test:browser # 23 Chromium checks; requires TEST_DATABASE_URL and browser install
+npm run test:db     # PostgreSQL integration tests; requires TEST_DATABASE_URL
+npm run test:browser # Chromium checks; requires TEST_DATABASE_URL and browser install
 npm run build
 npm start
 ```
@@ -58,7 +58,6 @@ Webpack because this environment blocks Turbopack worker port binding.
 | ORDER_TOKEN_ENCRYPTION_KEY | Required 64-character hex key for encrypted order-retry credentials |
 | ABLY_API_KEY | Server-only kitchen publish/token credential; see docs/realtime.md |
 | CRON_SECRET | Optional 32+ character secret for scheduled outbox delivery |
-| UPSTASH_REDIS_URL / UPSTASH_REDIS_TOKEN | Reserved for shared rate limiting |
 | NEXT_PUBLIC_APP_URL | Exact browser-facing origin, used to validate request origins |
 | ADMIN_EMAIL / ADMIN_PASSWORD | Explicit one-time admin provisioning inputs |
 
